@@ -22,7 +22,9 @@ export const PHONE_COUNTRY_CODES = [
   { value: "+971", label: "United Arab Emirates (+971)" },
 ] as const;
 
-const COUNTRY_CODE_SET = new Set(PHONE_COUNTRY_CODES.map((entry) => entry.value));
+const COUNTRY_CODE_SET: ReadonlySet<string> = new Set(
+  PHONE_COUNTRY_CODES.map((entry) => entry.value)
+);
 
 export function normalizePhone(countryCodeInput: string, phoneInput: string): string | null {
   const countryCode = countryCodeInput.trim();
