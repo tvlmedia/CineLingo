@@ -126,7 +126,19 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error || !data) {
-      return NextResponse.json({ error: "send_failed" }, { status: 500 });
+      console.error("chat send failed", {
+        userId,
+        friendId,
+        message: error?.message,
+        code: (error as { code?: string } | null)?.code,
+      });
+      return NextResponse.json(
+        {
+          error: "send_failed",
+          details: error?.message || "unknown_error",
+        },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ message: data });
@@ -143,7 +155,12 @@ export async function POST(request: NextRequest) {
       .select("id");
 
     if (error) {
-      return NextResponse.json({ error: "mark_read_failed" }, { status: 500 });
+      console.error("chat mark_read failed", {
+        userId,
+        friendId,
+        message: error.message,
+      });
+      return NextResponse.json({ error: "mark_read_failed", details: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ updated: (data || []).length, readAt });

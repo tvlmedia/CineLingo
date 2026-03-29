@@ -191,8 +191,16 @@ export function SocialNetworkClient({
     });
 
     if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; details?: string }
+        | null;
       setChatMessages((prev) => prev.filter((entry) => entry.id !== optimisticId));
-      setChatError("Bericht kon niet verzonden worden.");
+      const detail = String(payload?.details || payload?.error || "").trim();
+      setChatError(
+        detail
+          ? `Bericht kon niet verzonden worden: ${detail}`
+          : "Bericht kon niet verzonden worden."
+      );
     } else {
       const payload = (await response.json()) as { message?: ChatMessageItem };
       const data = payload.message;
