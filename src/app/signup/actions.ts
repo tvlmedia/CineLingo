@@ -30,18 +30,5 @@ export async function signUp(formData: FormData): Promise<void> {
     redirect("/signup?error=signup_failed");
   }
 
-  const { error: profileError } = await supabase.from("profiles").insert({
-    id: data.user.id,
-    username,
-    full_name: fullName,
-    bio: "",
-    role_focus: "",
-    experience_level: "",
-  });
-
-  if (profileError) {
-    redirect("/signup?error=profile_failed");
-  }
-
   redirect("/dashboard");
 }
