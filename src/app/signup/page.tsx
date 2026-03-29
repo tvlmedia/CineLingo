@@ -5,10 +5,22 @@ import { signUp } from "./actions";
 export default async function SignupPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ error?: string }>;
+  searchParams?: Promise<{
+    error?: string;
+    username?: string;
+    fullName?: string;
+    email?: string;
+    phoneCountryCode?: string;
+    phoneNationalNumber?: string;
+  }>;
 }) {
   const params = await searchParams;
   const error = params?.error;
+  const username = String(params?.username || "");
+  const fullName = String(params?.fullName || "");
+  const email = String(params?.email || "");
+  const phoneCountryCode = String(params?.phoneCountryCode || "+31");
+  const phoneNationalNumber = String(params?.phoneNationalNumber || "");
   const errorMessage =
     error === "missing_fields"
       ? "Vul alle velden in."
@@ -44,18 +56,18 @@ export default async function SignupPage({
             <form action={signUp} className="space-y-4">
               <div>
                 <label className="mb-2 block text-sm text-muted">Username</label>
-                <Input name="username" required />
+                <Input name="username" defaultValue={username} required />
               </div>
 
               <div>
                 <label className="mb-2 block text-sm text-muted">Full name</label>
-                <Input name="fullName" />
+                <Input name="fullName" defaultValue={fullName} />
               </div>
 
               <div>
                 <label className="mb-2 block text-sm text-muted">Phone number</label>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-[220px_1fr]">
-                  <select name="phoneCountryCode" defaultValue="+31" required>
+                  <select name="phoneCountryCode" defaultValue={phoneCountryCode} required>
                     {PHONE_COUNTRY_CODES.map((entry) => (
                       <option key={entry.value} value={entry.value}>
                         {entry.label}
@@ -68,6 +80,7 @@ export default async function SignupPage({
                     inputMode="numeric"
                     autoComplete="tel-national"
                     placeholder="6 12345678"
+                    defaultValue={phoneNationalNumber}
                     required
                   />
                 </div>
@@ -75,7 +88,7 @@ export default async function SignupPage({
 
               <div>
                 <label className="mb-2 block text-sm text-muted">Email</label>
-                <Input name="email" type="email" required />
+                <Input name="email" type="email" defaultValue={email} required />
               </div>
 
               <div>

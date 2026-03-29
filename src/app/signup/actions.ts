@@ -4,6 +4,26 @@ import { redirect } from "next/navigation";
 import { normalizePhone } from "@/lib/phone";
 import { createClient } from "@/lib/supabase/server";
 
+type SignupDraft = {
+  email: string;
+  username: string;
+  fullName: string;
+  phoneCountryCode: string;
+  phoneNationalNumber: string;
+};
+
+function redirectWithSignupError(errorCode: string, draft: SignupDraft): never {
+  const query = new URLSearchParams({
+    error: errorCode,
+    username: draft.username,
+    fullName: draft.fullName,
+    email: draft.email,
+    phoneCountryCode: draft.phoneCountryCode,
+    phoneNationalNumber: draft.phoneNationalNumber,
+  });
+  redirect(`/signup?${query.toString()}`);
+}
+
 function mapSignUpError(message: string | undefined): string {
   const normalized = String(message || "").toLowerCase();
 
@@ -43,14 +63,21 @@ export async function signUp(formData: FormData): Promise<void> {
   const fullName = String(formData.get("fullName") || "").trim();
   const phoneCountryCode = String(formData.get("phoneCountryCode") || "").trim();
   const phoneNationalNumber = String(formData.get("phoneNationalNumber") || "").trim();
+  const draft: SignupDraft = {
+    email,
+    username,
+    fullName,
+    phoneCountryCode,
+    phoneNationalNumber,
+  };
 
   if (!email || !password || !username || !phoneCountryCode || !phoneNationalNumber) {
-    redirect("/signup?error=missing_fields");
+    redirectWithSignupError("missing_fields", draft);
   }
 
   const phone = normalizePhone(phoneCountryCode, phoneNationalNumber);
   if (!phone) {
-    redirect("/signup?error=missing_fields");
+    redirectWithSignupError("invalid_phone", draft);
   }
 
   const supabase = await createClient();
@@ -75,15 +102,15 @@ export async function signUp(formData: FormData): Promise<void> {
     ]);
 
   if ((existingUsername || []).length > 0) {
-    redirect("/signup?error=username_taken");
+    redirectWithSignupError("username_taken", draft);
   }
 
   if ((existingPhone || []).length > 0) {
-    redirect("/signup?error=phone_taken");
+    redirectWithSignupError("phone_taken", draft);
   }
 
   if ((existingEmail || []).length > 0) {
-    redirect("/signup?error=email_taken");
+    redirectWithSignupError("email_taken", draft);
   }
 
   const { error } = await supabase.auth.signUp({
@@ -106,7 +133,7 @@ export async function signUp(formData: FormData): Promise<void> {
         status: (error as { status?: number }).status,
       });
     }
-    redirect(`/signup?error=${errorCode}`);
+    redirectWithSignupError(errorCode, draft);
   }
 
   redirect("/check-email");
