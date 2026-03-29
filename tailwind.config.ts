@@ -9,12 +9,12 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#0b1020",
+        background: "#050b1d",
         foreground: "#f8fafc",
-        accent: "#7c3aed",
-        muted: "#94a3b8",
-        card: "#111827",
-        border: "#1f2937"
+        accent: "#18d3a3",
+        muted: "#a9b8d8",
+        card: "rgba(8, 20, 43, 0.72)",
+        border: "rgba(124, 146, 186, 0.22)"
       },
     },
   },

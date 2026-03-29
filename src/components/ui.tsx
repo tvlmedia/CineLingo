@@ -2,12 +2,12 @@ import Link from "next/link";
 import { ButtonHTMLAttributes, InputHTMLAttributes } from "react";
 
 export function Container({ children }: { children: React.ReactNode }) {
-  return <div className="mx-auto max-w-6xl px-6">{children}</div>;
+  return <div className="mx-auto max-w-6xl px-5 md:px-8">{children}</div>;
 }
 
 export function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-3xl border border-border bg-card p-6 shadow-lg shadow-black/20">
+    <div className="rounded-3xl border border-border bg-card p-6 shadow-[0_24px_60px_rgba(1,7,18,0.45)] backdrop-blur-sm">
       {children}
     </div>
   );
@@ -30,7 +30,7 @@ export function Button({
   return (
     <button
       {...props}
-      className={`rounded-2xl bg-accent px-4 py-3 font-semibold text-white transition hover:opacity-90 disabled:opacity-50 ${className}`}
+      className={`rounded-2xl bg-accent px-4 py-3 font-semibold text-[#04231d] transition hover:brightness-105 disabled:opacity-50 ${className}`}
     />
   );
 }
@@ -45,7 +45,7 @@ export function GhostLink({
   return (
     <Link
       href={href}
-      className="rounded-2xl border border-border px-4 py-3 font-semibold text-foreground transition hover:bg-white/5"
+      className="rounded-2xl border border-border px-4 py-3 font-semibold text-foreground transition hover:bg-white/10"
     >
       {children}
     </Link>

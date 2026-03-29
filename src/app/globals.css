@@ -4,15 +4,28 @@
 
 :root {
   color-scheme: dark;
+  --bg-0: #050b1d;
+  --bg-1: #091632;
+  --bg-2: #0c2242;
+  --text-0: #f8fafc;
+  --text-1: #c8d3ea;
+  --border-0: rgba(124, 146, 186, 0.22);
+  --accent-0: #18d3a3;
+  --accent-1: #7ae582;
 }
 
 html,
 body {
   padding: 0;
   margin: 0;
-  background: #0b1020;
-  color: #f8fafc;
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100%;
+  color: var(--text-0);
+  font-family: var(--font-space-grotesk), "Segoe UI", sans-serif;
+  background:
+    radial-gradient(1200px 700px at 90% -10%, rgba(24, 211, 163, 0.16), transparent 55%),
+    radial-gradient(900px 500px at -10% 15%, rgba(122, 229, 130, 0.12), transparent 55%),
+    linear-gradient(170deg, var(--bg-0), var(--bg-1) 42%, var(--bg-2));
+  letter-spacing: 0.01em;
 }
 
 * {
@@ -28,13 +41,41 @@ input,
 textarea,
 select {
   width: 100%;
-  background: #111827;
-  color: #f8fafc;
-  border: 1px solid #374151;
-  border-radius: 12px;
+  background: rgba(7, 17, 39, 0.78);
+  color: var(--text-0);
+  border: 1px solid var(--border-0);
+  border-radius: 14px;
   padding: 12px 14px;
+  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: rgba(24, 211, 163, 0.7);
+  box-shadow: 0 0 0 4px rgba(24, 211, 163, 0.15);
+  background: rgba(8, 21, 45, 0.9);
 }
 
 button {
   cursor: pointer;
+}
+
+input[type="range"] {
+  padding: 0;
+  height: 6px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(122, 146, 186, 0.3);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid #041125;
+  background: var(--accent-0);
 }
