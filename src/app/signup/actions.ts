@@ -12,7 +12,7 @@ type SignupDraft = {
   phoneNationalNumber: string;
 };
 
-function redirectWithSignupError(errorCode: string, draft: SignupDraft): never {
+function redirectWithSignupError(errorCode: string, draft: SignupDraft, debug?: string): never {
   const query = new URLSearchParams({
     error: errorCode,
     username: draft.username,
@@ -21,6 +21,9 @@ function redirectWithSignupError(errorCode: string, draft: SignupDraft): never {
     phoneCountryCode: draft.phoneCountryCode,
     phoneNationalNumber: draft.phoneNationalNumber,
   });
+  if (debug) {
+    query.set("debug", debug.slice(0, 180));
+  }
   redirect(`/signup?${query.toString()}`);
 }
 
@@ -75,6 +78,11 @@ export async function signUp(formData: FormData): Promise<void> {
     redirectWithSignupError("missing_fields", draft);
   }
 
+  const normalizedUsername = username.toLowerCase();
+  if (!/^[a-z0-9._]{3,24}$/.test(normalizedUsername)) {
+    redirectWithSignupError("invalid_username", draft);
+  }
+
   const phone = normalizePhone(phoneCountryCode, phoneNationalNumber);
   if (!phone) {
     redirectWithSignupError("invalid_phone", draft);
@@ -87,7 +95,7 @@ export async function signUp(formData: FormData): Promise<void> {
       supabase
         .from("profiles")
         .select("id")
-        .ilike("username", username)
+        .ilike("username", normalizedUsername)
         .limit(1),
       supabase
         .from("profiles")
@@ -118,7 +126,7 @@ export async function signUp(formData: FormData): Promise<void> {
     password,
     options: {
       data: {
-        username,
+        username: normalizedUsername,
         full_name: fullName,
         phone,
       },
@@ -133,7 +141,7 @@ export async function signUp(formData: FormData): Promise<void> {
         status: (error as { status?: number }).status,
       });
     }
-    redirectWithSignupError(errorCode, draft);
+    redirectWithSignupError(errorCode, draft, error.message);
   }
 
   redirect("/check-email");

@@ -12,10 +12,12 @@ export default async function SignupPage({
     email?: string;
     phoneCountryCode?: string;
     phoneNationalNumber?: string;
+    debug?: string;
   }>;
 }) {
   const params = await searchParams;
   const error = params?.error;
+  const debug = String(params?.debug || "");
   const username = String(params?.username || "");
   const fullName = String(params?.fullName || "");
   const email = String(params?.email || "");
@@ -30,6 +32,8 @@ export default async function SignupPage({
           ? "Dit e-mailadres is al in gebruik."
         : error === "username_taken"
             ? "Deze username is al bezet. Kies een andere."
+          : error === "invalid_username"
+            ? "Username moet 3-24 tekens zijn en mag alleen letters, cijfers, punt en underscore bevatten (geen spaties)."
           : error === "phone_taken"
             ? "Dit telefoonnummer is al gekoppeld aan een account."
           : error === "weak_password"
@@ -50,6 +54,9 @@ export default async function SignupPage({
             {errorMessage ? (
               <p className="mb-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
                 {errorMessage}
+                {error === "signup_failed" && debug ? (
+                  <span className="mt-2 block text-xs text-red-300/90">Details: {debug}</span>
+                ) : null}
               </p>
             ) : null}
 
