@@ -55,7 +55,7 @@ export async function signUp(formData: FormData): Promise<void> {
 
   const supabase = await createClient();
 
-  const { data, error } = await supabase.auth.signUp({
+  const { error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -67,7 +67,7 @@ export async function signUp(formData: FormData): Promise<void> {
     },
   });
 
-  if (error || !data.user) {
+  if (error) {
     const errorCode = mapSignUpError(error?.message);
     redirect(`/signup?error=${errorCode}`);
   }
