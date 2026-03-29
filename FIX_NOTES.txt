@@ -1,0 +1,2 @@
+Deze versie fixt de Vercel build error met Tailwind/PostCSS door stabiele versies vast te zetten.
+Upload deze bestanden over je bestaande repo heen en redeploy daarna in Vercel.
