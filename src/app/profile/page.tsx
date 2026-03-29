@@ -6,6 +6,10 @@ import { Card, Container } from "@/components/ui";
 import { ProfileForm } from "./ProfileForm";
 import { updateProfile } from "./actions";
 
+function isMissingInstagramColumn(errorMessage: string | undefined): boolean {
+  return String(errorMessage || "").toLowerCase().includes("instagram_url");
+}
+
 export default async function ProfilePage({
   searchParams,
 }: {
@@ -15,11 +19,22 @@ export default async function ProfilePage({
   const supabase = await createClient();
   const params = await searchParams;
 
-  const { data: profile, error: profileError } = await supabase
+  let { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("username, full_name, phone, avatar_url, instagram_url, bio, role_focus, experience_level")
     .eq("id", user.id)
     .single();
+
+  if (profileError && isMissingInstagramColumn(profileError.message)) {
+    const fallback = await supabase
+      .from("profiles")
+      .select("username, full_name, phone, avatar_url, bio, role_focus, experience_level")
+      .eq("id", user.id)
+      .single();
+
+    profile = fallback.data;
+    profileError = fallback.error;
+  }
 
   if (profileError || !profile) {
     return (
@@ -99,7 +114,7 @@ export default async function ProfilePage({
                 phoneCountryCode: phoneFields.countryCode,
                 phoneNationalNumber: phoneFields.nationalNumber,
                 avatarUrl: profile.avatar_url || "",
-                instagramUrl: profile.instagram_url || "",
+                instagramUrl: String((profile as { instagram_url?: string }).instagram_url || ""),
                 bio: profile.bio || "",
                 roleFocus: profile.role_focus || "",
                 experienceLevel: profile.experience_level || "",

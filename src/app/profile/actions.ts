@@ -35,14 +35,35 @@ function normalizeInstagramUrl(input: string): string | null {
   }
 }
 
+function isMissingInstagramColumn(errorMessage: string | undefined): boolean {
+  return String(errorMessage || "").toLowerCase().includes("instagram_url");
+}
+
 export async function updateProfile(formData: FormData): Promise<void> {
   const user = await requireUser();
   const supabase = await createClient();
-  const { data: existingProfile, error: existingProfileError } = await supabase
+
+  let { data: existingProfile, error: existingProfileError } = await supabase
     .from("profiles")
     .select("username, full_name, instagram_url, bio, role_focus, experience_level")
     .eq("id", user.id)
     .single();
+
+  if (existingProfileError && isMissingInstagramColumn(existingProfileError.message)) {
+    const fallback = await supabase
+      .from("profiles")
+      .select("username, full_name, bio, role_focus, experience_level")
+      .eq("id", user.id)
+      .single();
+
+    existingProfile = fallback.data
+      ? {
+          ...fallback.data,
+          instagram_url: "",
+        }
+      : null;
+    existingProfileError = fallback.error;
+  }
 
   if (existingProfileError || !existingProfile) {
     redirect("/profile?error=save_failed");
@@ -138,10 +159,19 @@ export async function updateProfile(formData: FormData): Promise<void> {
     updateData.avatar_url = avatarUrl;
   }
 
-  const { error } = await supabase
+  let { error } = await supabase
     .from("profiles")
     .update(updateData)
     .eq("id", user.id);
+
+  if (error && isMissingInstagramColumn(error.message)) {
+    const { instagram_url: _instagramUrl, ...updateWithoutInstagram } = updateData;
+    const retry = await supabase
+      .from("profiles")
+      .update(updateWithoutInstagram)
+      .eq("id", user.id);
+    error = retry.error;
+  }
 
   if (error) {
     redirect("/profile?error=save_failed");
