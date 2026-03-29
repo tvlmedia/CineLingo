@@ -1,4 +1,5 @@
 import { Card, Container, Input } from "@/components/ui";
+import { PHONE_COUNTRY_CODES } from "@/lib/phone";
 import { signUp } from "./actions";
 
 export default async function SignupPage({
@@ -35,7 +36,23 @@ export default async function SignupPage({
 
               <div>
                 <label className="mb-2 block text-sm text-muted">Phone number</label>
-                <Input name="phone" type="tel" required />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[220px_1fr]">
+                  <select name="phoneCountryCode" defaultValue="+31" required>
+                    {PHONE_COUNTRY_CODES.map((entry) => (
+                      <option key={entry.value} value={entry.value}>
+                        {entry.label}
+                      </option>
+                    ))}
+                  </select>
+                  <Input
+                    name="phoneNationalNumber"
+                    type="tel"
+                    inputMode="numeric"
+                    autoComplete="tel-national"
+                    placeholder="6 12345678"
+                    required
+                  />
+                </div>
               </div>
 
               <div>

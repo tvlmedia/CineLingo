@@ -1,4 +1,5 @@
 import { requireUser } from "@/lib/auth";
+import { PHONE_COUNTRY_CODES, splitPhone } from "@/lib/phone";
 import { createClient } from "@/lib/supabase/server";
 import { Card, Container, Input, TextArea } from "@/components/ui";
 import { updateProfile } from "./actions";
@@ -14,9 +15,10 @@ export default async function ProfilePage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("username, full_name, bio, role_focus, experience_level")
+    .select("username, full_name, phone, bio, role_focus, experience_level")
     .eq("id", user.id)
     .single();
+  const phoneFields = splitPhone(profile?.phone);
 
   return (
     <main className="min-h-screen py-16">
@@ -45,6 +47,27 @@ export default async function ProfilePage({
               <div>
                 <label className="mb-2 block text-sm text-muted">Full name</label>
                 <Input name="fullName" defaultValue={profile?.full_name || ""} />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm text-muted">Phone number</label>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[220px_1fr]">
+                  <select name="phoneCountryCode" defaultValue={phoneFields.countryCode} required>
+                    {PHONE_COUNTRY_CODES.map((entry) => (
+                      <option key={entry.value} value={entry.value}>
+                        {entry.label}
+                      </option>
+                    ))}
+                  </select>
+                  <Input
+                    name="phoneNationalNumber"
+                    type="tel"
+                    inputMode="numeric"
+                    autoComplete="tel-national"
+                    defaultValue={phoneFields.nationalNumber}
+                    placeholder="6 12345678"
+                    required
+                  />
+                </div>
               </div>
               <div>
                 <label className="mb-2 block text-sm text-muted">Bio</label>
