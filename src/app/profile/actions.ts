@@ -10,7 +10,7 @@ export async function updateProfile(formData: FormData): Promise<void> {
   const supabase = await createClient();
   const { data: existingProfile, error: existingProfileError } = await supabase
     .from("profiles")
-    .select("full_name, bio, role_focus, experience_level")
+    .select("username, full_name, bio, role_focus, experience_level")
     .eq("id", user.id)
     .single();
 
@@ -18,7 +18,7 @@ export async function updateProfile(formData: FormData): Promise<void> {
     redirect("/profile?error=save_failed");
   }
 
-  const username = String(formData.get("username") || "").trim();
+  const submittedUsername = String(formData.get("username") || "").trim();
   const fullName = String(formData.get("fullName") || "").trim();
   const phoneCountryCode = String(formData.get("phoneCountryCode") || "").trim();
   const phoneNationalNumber = String(formData.get("phoneNationalNumber") || "").trim();
@@ -28,6 +28,12 @@ export async function updateProfile(formData: FormData): Promise<void> {
   const avatarImageData = String(formData.get("avatarImageData") || "").trim();
   const removeAvatar = String(formData.get("removeAvatar") || "") === "1";
   const phone = normalizePhone(phoneCountryCode, phoneNationalNumber);
+
+  const fallbackUsername =
+    existingProfile.username ||
+    String((user.user_metadata as { username?: string } | null)?.username || "").trim() ||
+    (user.email ? user.email.split("@")[0] : "");
+  const username = submittedUsername || fallbackUsername;
 
   if (!username || !phone) {
     redirect("/profile?error=save_failed");

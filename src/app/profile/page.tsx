@@ -47,6 +47,10 @@ export default async function ProfilePage({
   }
 
   const phoneFields = splitPhone(profile.phone);
+  const fallbackUsername =
+    profile.username ||
+    String((user.user_metadata as { username?: string } | null)?.username || "").trim() ||
+    (user.email ? user.email.split("@")[0] : "");
 
   return (
     <main className="min-h-screen py-16">
@@ -78,7 +82,7 @@ export default async function ProfilePage({
             <ProfileForm
               action={updateProfile}
               profile={{
-                username: profile.username || "",
+                username: fallbackUsername,
                 fullName: profile.full_name || "",
                 phoneCountryCode: phoneFields.countryCode,
                 phoneNationalNumber: phoneFields.nationalNumber,
