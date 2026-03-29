@@ -9,6 +9,22 @@ export default async function SignupPage({
 }) {
   const params = await searchParams;
   const error = params?.error;
+  const errorMessage =
+    error === "missing_fields"
+      ? "Vul alle velden in."
+      : error === "invalid_phone"
+        ? "Voer een geldig telefoonnummer in met landcode."
+        : error === "email_taken"
+          ? "Dit e-mailadres is al in gebruik."
+          : error === "username_taken"
+            ? "Deze username is al bezet. Kies een andere."
+            : error === "weak_password"
+              ? "Kies een sterker wachtwoord (minimaal 6 tekens)."
+              : error === "signup_conflict"
+                ? "Er is al een account met deze gegevens. Probeer een andere username of e-mail."
+                : error
+                  ? "Signup failed. Try again with a different email, username or phone number."
+                  : null;
 
   return (
     <main className="min-h-screen py-16">
@@ -17,9 +33,9 @@ export default async function SignupPage({
           <Card>
             <h1 className="mb-6 text-3xl font-bold">Create your CineLingo account</h1>
 
-            {error ? (
+            {errorMessage ? (
               <p className="mb-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                Signup failed. Try again with a different email, username or phone number.
+                {errorMessage}
               </p>
             ) : null}
 
@@ -62,7 +78,7 @@ export default async function SignupPage({
 
               <div>
                 <label className="mb-2 block text-sm text-muted">Password</label>
-                <Input name="password" type="password" required />
+                <Input name="password" type="password" minLength={6} required />
               </div>
 
               <button className="w-full rounded-2xl bg-accent px-4 py-3 font-semibold">
