@@ -1,13 +1,25 @@
 import { Card, Container, Input } from "@/components/ui";
 import { signUp } from "./actions";
 
-export default function SignupPage() {
+export default async function SignupPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ error?: string }>;
+}) {
+  const params = await searchParams;
+  const error = params?.error;
+
   return (
     <main className="min-h-screen py-16">
       <Container>
         <div className="mx-auto max-w-xl">
           <Card>
             <h1 className="mb-6 text-3xl font-bold">Create your CineLingo account</h1>
+            {error ? (
+              <p className="mb-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                Signup failed. Try again with a different email or username.
+              </p>
+            ) : null}
             <form action={signUp} className="space-y-4">
               <div>
                 <label className="mb-2 block text-sm text-muted">Username</label>

@@ -3,9 +3,14 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, Container, Input, TextArea } from "@/components/ui";
 import { updateProfile } from "./actions";
 
-export default async function ProfilePage() {
+export default async function ProfilePage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ error?: string; saved?: string }>;
+}) {
   const user = await requireUser();
   const supabase = await createClient();
+  const params = await searchParams;
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -19,6 +24,19 @@ export default async function ProfilePage() {
         <div className="mx-auto max-w-2xl">
           <Card>
             <h1 className="mb-6 text-3xl font-bold">Your profile</h1>
+
+            {params?.saved ? (
+              <p className="mb-4 rounded-2xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-200">
+                Profile saved.
+              </p>
+            ) : null}
+
+            {params?.error ? (
+              <p className="mb-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                Saving failed. Try again.
+              </p>
+            ) : null}
+
             <form action={updateProfile} className="space-y-4">
               <div>
                 <label className="mb-2 block text-sm text-muted">Username</label>

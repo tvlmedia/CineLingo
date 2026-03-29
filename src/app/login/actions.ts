@@ -3,9 +3,13 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-export async function login(formData: FormData) {
+export async function login(formData: FormData): Promise<void> {
   const email = String(formData.get("email") || "").trim();
   const password = String(formData.get("password") || "");
+
+  if (!email || !password) {
+    redirect("/login?error=missing_fields");
+  }
 
   const supabase = await createClient();
 
@@ -15,7 +19,7 @@ export async function login(formData: FormData) {
   });
 
   if (error) {
-    return { error: error.message };
+    redirect("/login?error=invalid_login");
   }
 
   redirect("/dashboard");

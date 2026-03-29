@@ -1,9 +1,10 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
-export async function updateProfile(formData: FormData) {
+export async function updateProfile(formData: FormData): Promise<void> {
   const user = await requireUser();
   const supabase = await createClient();
 
@@ -25,8 +26,8 @@ export async function updateProfile(formData: FormData) {
     .eq("id", user.id);
 
   if (error) {
-    return { error: error.message };
+    redirect("/profile?error=save_failed");
   }
 
-  return { success: true };
+  redirect("/profile?saved=1");
 }

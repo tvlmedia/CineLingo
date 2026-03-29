@@ -27,5 +27,3 @@ npm run dev
 ## Daarna
 
 Deploy op Vercel en vul daar dezelfde env vars in.
-Trigger new Vercel deploy
-	•	Commit changes

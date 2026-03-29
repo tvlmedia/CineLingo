@@ -3,14 +3,14 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-export async function signUp(formData: FormData) {
+export async function signUp(formData: FormData): Promise<void> {
   const email = String(formData.get("email") || "").trim();
   const password = String(formData.get("password") || "");
   const username = String(formData.get("username") || "").trim();
   const fullName = String(formData.get("fullName") || "").trim();
 
   if (!email || !password || !username) {
-    return { error: "Email, password en username zijn verplicht." };
+    redirect("/signup?error=missing_fields");
   }
 
   const supabase = await createClient();
@@ -26,23 +26,21 @@ export async function signUp(formData: FormData) {
     },
   });
 
-  if (error) {
-    return { error: error.message };
+  if (error || !data.user) {
+    redirect("/signup?error=signup_failed");
   }
 
-  if (data.user) {
-    const { error: profileError } = await supabase.from("profiles").insert({
-      id: data.user.id,
-      username,
-      full_name: fullName,
-      bio: "",
-      role_focus: "",
-      experience_level: "",
-    });
+  const { error: profileError } = await supabase.from("profiles").insert({
+    id: data.user.id,
+    username,
+    full_name: fullName,
+    bio: "",
+    role_focus: "",
+    experience_level: "",
+  });
 
-    if (profileError) {
-      return { error: profileError.message };
-    }
+  if (profileError) {
+    redirect("/signup?error=profile_failed");
   }
 
   redirect("/dashboard");
