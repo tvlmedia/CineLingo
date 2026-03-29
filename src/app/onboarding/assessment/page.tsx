@@ -27,6 +27,78 @@ type AssessmentQuestionView = {
   } | null;
 };
 
+type RawAssessmentAnswerRow = {
+  id: unknown;
+  question_order: unknown;
+  selected_option_id: unknown;
+  options_order: unknown;
+  question:
+    | {
+        id?: unknown;
+        category?: unknown;
+        prompt?: unknown;
+        options?: unknown;
+        explanation?: unknown;
+      }
+    | Array<{
+        id?: unknown;
+        category?: unknown;
+        prompt?: unknown;
+        options?: unknown;
+        explanation?: unknown;
+      }>
+    | null;
+};
+
+function normalizeQuestion(
+  value: RawAssessmentAnswerRow["question"]
+): AssessmentQuestionView["question"] {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  if (!candidate || typeof candidate !== "object") {
+    return null;
+  }
+
+  const id = typeof candidate.id === "string" ? candidate.id : null;
+  const category = typeof candidate.category === "string" ? candidate.category : null;
+  const prompt = typeof candidate.prompt === "string" ? candidate.prompt : null;
+  const explanation = typeof candidate.explanation === "string" ? candidate.explanation : null;
+
+  if (!id || !category || !prompt || !explanation) {
+    return null;
+  }
+
+  return {
+    id,
+    category,
+    prompt,
+    options: candidate.options,
+    explanation,
+  };
+}
+
+function normalizeAnswerRows(value: unknown): AssessmentQuestionView[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((row): AssessmentQuestionView | null => {
+      const raw = row as RawAssessmentAnswerRow;
+      if (typeof raw.id !== "string" || typeof raw.question_order !== "number") {
+        return null;
+      }
+
+      return {
+        id: raw.id,
+        question_order: raw.question_order,
+        selected_option_id: typeof raw.selected_option_id === "string" ? raw.selected_option_id : null,
+        options_order: raw.options_order,
+        question: normalizeQuestion(raw.question),
+      };
+    })
+    .filter((row): row is AssessmentQuestionView => Boolean(row));
+}
+
 function orderedOptions(options: AssessmentOption[], orderRaw: unknown): AssessmentOption[] {
   if (!Array.isArray(orderRaw)) {
     return options;
@@ -94,7 +166,7 @@ export default async function AssessmentPage({
     .eq("user_id", user.id)
     .order("question_order", { ascending: true });
 
-  const rows = (answerRows || []) as AssessmentQuestionView[];
+  const rows = normalizeAnswerRows(answerRows);
   if (rows.length === 0) {
     redirect("/onboarding?error=attempt_not_found");
   }
