@@ -15,6 +15,7 @@ import {
   computeCategoryScores,
   pickAssessmentQuestions,
   QUESTIONS_PER_CATEGORY,
+  TOTAL_ASSESSMENT_QUESTIONS,
 } from "@/lib/assessment/engine";
 import { ASSESSMENT_QUESTION_BANK } from "@/lib/assessment/question-bank";
 
@@ -84,7 +85,7 @@ function toAssessmentQuestion(row: AssessmentQuestionRow): AssessmentQuestion | 
   };
 }
 
-async function seedQuestionBankIfNeeded(): Promise<void> {
+async function seedQuestionBankIfNeeded(): Promise<string | null> {
   const supabase = await createClient();
 
   const rows = ASSESSMENT_QUESTION_BANK.map((question) => ({
@@ -97,10 +98,15 @@ async function seedQuestionBankIfNeeded(): Promise<void> {
   }));
 
   // For non-admin users this can fail via RLS; we ignore that and rely on existing DB data.
-  await supabase.from("assessment_questions").upsert(rows, { onConflict: "key" });
+  const { error } = await supabase.from("assessment_questions").upsert(rows, { onConflict: "key" });
+  if (error) {
+    return error.message;
+  }
+
+  return null;
 }
 
-async function getActiveQuestions(): Promise<AssessmentQuestion[]> {
+async function getActiveQuestions(): Promise<{ questions: AssessmentQuestion[]; errorMessage: string | null }> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("assessment_questions")
@@ -108,12 +114,14 @@ async function getActiveQuestions(): Promise<AssessmentQuestion[]> {
     .eq("is_active", true);
 
   if (error) {
-    return [];
+    return { questions: [], errorMessage: error.message };
   }
 
-  return (data || [])
+  const questions = (data || [])
     .map((row) => toAssessmentQuestion(row as AssessmentQuestionRow))
     .filter((row): row is AssessmentQuestion => Boolean(row));
+
+  return { questions, errorMessage: null };
 }
 
 async function getLatestInProgressAttemptId(userId: string): Promise<string | null> {
@@ -207,15 +215,34 @@ export async function startAssessment(formData: FormData): Promise<void> {
   const forceNew = String(formData.get("forceNew") || "") === "1";
   const supabase = await createClient();
 
-  await seedQuestionBankIfNeeded();
+  const seedError = await seedQuestionBankIfNeeded();
 
-  const activeQuestions = await getActiveQuestions();
+  const activeQuestionResult = await getActiveQuestions();
+  if (activeQuestionResult.errorMessage) {
+    redirect(
+      `/onboarding?error=question_setup_incomplete&debug=${encodeURIComponent(
+        `question_select_failed: ${activeQuestionResult.errorMessage}`
+      )}`
+    );
+  }
+
+  const activeQuestions = activeQuestionResult.questions;
+  if (activeQuestions.length < TOTAL_ASSESSMENT_QUESTIONS) {
+    const debugParts = [`active_question_count=${activeQuestions.length}`];
+    if (seedError) {
+      debugParts.push(`seed_error=${seedError}`);
+    }
+    redirect(`/onboarding?error=question_setup_incomplete&debug=${encodeURIComponent(debugParts.join(" | "))}`);
+  }
+
   let selectedQuestions: AssessmentQuestion[];
 
   try {
     selectedQuestions = pickAssessmentQuestions(activeQuestions, QUESTIONS_PER_CATEGORY);
-  } catch {
-    redirect("/onboarding?error=question_setup_incomplete");
+  } catch (error) {
+    const reason =
+      error instanceof Error ? error.message : "unknown_category_distribution_problem";
+    redirect(`/onboarding?error=question_setup_incomplete&debug=${encodeURIComponent(reason)}`);
   }
 
   const inProgressAttemptId = await getLatestInProgressAttemptId(user.id);

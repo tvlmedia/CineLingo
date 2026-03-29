@@ -8,6 +8,7 @@ import { startAssessment } from "./actions";
 
 type OnboardingParams = {
   error?: string;
+  debug?: string;
 };
 
 function onboardingErrorMessage(errorCode: string | undefined): string | null {
@@ -27,6 +28,14 @@ function onboardingErrorMessage(errorCode: string | undefined): string | null {
     return null;
   }
   return "Could not continue onboarding assessment.";
+}
+
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 export default async function OnboardingPage({
@@ -60,6 +69,7 @@ export default async function OnboardingPage({
   const inProgressAttempt = inProgressResult.data;
   const latestCompleted = latestCompletedResult.data;
   const errorMessage = onboardingErrorMessage(params.error);
+  const debugMessage = params.debug ? safeDecode(String(params.debug)) : null;
 
   return (
     <main className="min-h-screen py-10 md:py-14">
@@ -88,6 +98,11 @@ export default async function OnboardingPage({
             {errorMessage ? (
               <p className="mb-5 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
                 {errorMessage}
+              </p>
+            ) : null}
+            {debugMessage ? (
+              <p className="mb-5 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-xs text-yellow-100">
+                Debug: {debugMessage}
               </p>
             ) : null}
 
