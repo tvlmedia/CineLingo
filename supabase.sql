@@ -6,6 +6,7 @@ create table if not exists public.profiles (
   full_name text,
   phone text,
   avatar_url text,
+  instagram_url text,
   bio text default '',
   role_focus text default '',
   experience_level text default '',
@@ -17,6 +18,9 @@ add column if not exists phone text;
 
 alter table public.profiles
 add column if not exists avatar_url text;
+
+alter table public.profiles
+add column if not exists instagram_url text;
 
 do $$
 begin

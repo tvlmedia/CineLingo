@@ -17,7 +17,7 @@ export default async function ProfilePage({
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("username, full_name, phone, avatar_url, bio, role_focus, experience_level")
+    .select("username, full_name, phone, avatar_url, instagram_url, bio, role_focus, experience_level")
     .eq("id", user.id)
     .single();
 
@@ -79,7 +79,13 @@ export default async function ProfilePage({
               </p>
             ) : null}
 
-            {params?.error ? (
+            {params?.error === "invalid_instagram" ? (
+              <p className="mb-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                Invalid Instagram link. Use @username or instagram.com/username.
+              </p>
+            ) : null}
+
+            {params?.error && params.error !== "invalid_instagram" ? (
               <p className="mb-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
                 Saving failed. Try again.
               </p>
@@ -93,6 +99,7 @@ export default async function ProfilePage({
                 phoneCountryCode: phoneFields.countryCode,
                 phoneNationalNumber: phoneFields.nationalNumber,
                 avatarUrl: profile.avatar_url || "",
+                instagramUrl: profile.instagram_url || "",
                 bio: profile.bio || "",
                 roleFocus: profile.role_focus || "",
                 experienceLevel: profile.experience_level || "",

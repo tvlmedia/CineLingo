@@ -5,12 +5,42 @@ import { requireUser } from "@/lib/auth";
 import { normalizePhone } from "@/lib/phone";
 import { createClient } from "@/lib/supabase/server";
 
+function normalizeInstagramUrl(input: string): string | null {
+  const raw = input.trim();
+  if (!raw) {
+    return "";
+  }
+
+  const fromAt = raw.startsWith("@") ? raw.slice(1).trim() : raw;
+  if (/^[A-Za-z0-9._]{1,30}$/.test(fromAt)) {
+    return `https://instagram.com/${fromAt}`;
+  }
+
+  const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const parsed = new URL(withScheme);
+    const hostname = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    if (hostname !== "instagram.com") {
+      return null;
+    }
+
+    const firstSegment = parsed.pathname.split("/").filter(Boolean)[0];
+    if (!firstSegment || !/^[A-Za-z0-9._]{1,30}$/.test(firstSegment)) {
+      return null;
+    }
+
+    return `https://instagram.com/${firstSegment}`;
+  } catch {
+    return null;
+  }
+}
+
 export async function updateProfile(formData: FormData): Promise<void> {
   const user = await requireUser();
   const supabase = await createClient();
   const { data: existingProfile, error: existingProfileError } = await supabase
     .from("profiles")
-    .select("username, full_name, bio, role_focus, experience_level")
+    .select("username, full_name, instagram_url, bio, role_focus, experience_level")
     .eq("id", user.id)
     .single();
 
@@ -25,15 +55,21 @@ export async function updateProfile(formData: FormData): Promise<void> {
   const bio = String(formData.get("bio") || "").trim();
   const roleFocus = String(formData.get("roleFocus") || "").trim();
   const experienceLevel = String(formData.get("experienceLevel") || "").trim();
+  const instagramInput = String(formData.get("instagramUrl") || "").trim();
   const avatarImageData = String(formData.get("avatarImageData") || "").trim();
   const removeAvatar = String(formData.get("removeAvatar") || "") === "1";
   const phone = normalizePhone(phoneCountryCode, phoneNationalNumber);
+  const instagramUrl = normalizeInstagramUrl(instagramInput);
 
   const fallbackUsername =
     existingProfile.username ||
     String((user.user_metadata as { username?: string } | null)?.username || "").trim() ||
     (user.email ? user.email.split("@")[0] : "");
   const username = submittedUsername || fallbackUsername;
+
+  if (instagramUrl === null) {
+    redirect("/profile?error=invalid_instagram");
+  }
 
   if (!username || !phone) {
     redirect("/profile?error=save_failed");
@@ -86,6 +122,7 @@ export async function updateProfile(formData: FormData): Promise<void> {
     bio: string;
     role_focus: string;
     experience_level: string;
+    instagram_url: string;
     avatar_url?: string | null;
   } = {
     username,
@@ -94,6 +131,7 @@ export async function updateProfile(formData: FormData): Promise<void> {
     bio: bio || existingProfile.bio || "",
     role_focus: roleFocus || existingProfile.role_focus || "",
     experience_level: experienceLevel || existingProfile.experience_level || "",
+    instagram_url: instagramUrl || existingProfile.instagram_url || "",
   };
 
   if (avatarUrl !== undefined) {

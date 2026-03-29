@@ -11,6 +11,7 @@ type ProfileFormProps = {
     fullName: string;
     phoneCountryCode: string;
     phoneNationalNumber: string;
+    instagramUrl: string;
     bio: string;
     roleFocus: string;
     experienceLevel: string;
@@ -242,6 +243,16 @@ export function ProfileForm({ action, profile }: ProfileFormProps) {
             required
           />
         </div>
+      </div>
+
+      <div>
+        <label className="mb-2 block text-sm text-muted">Instagram</label>
+        <Input
+          name="instagramUrl"
+          type="text"
+          defaultValue={profile.instagramUrl}
+          placeholder="@jouwnaam of https://instagram.com/jouwnaam"
+        />
       </div>
 
       <div>
