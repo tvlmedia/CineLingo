@@ -1,7 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { FormEvent, useEffect, useState } from "react";
 
 type FriendItem = {
   id: string;
@@ -37,11 +36,11 @@ export function SocialNetworkClient({
   initialSelectedChatId,
   initialMessages,
 }: SocialNetworkClientProps) {
-  const supabase = useMemo(() => createClient(), []);
   const [selectedChatId, setSelectedChatId] = useState(initialSelectedChatId);
   const [chatMessages, setChatMessages] = useState<ChatMessageItem[]>(initialMessages);
   const [pendingMessage, setPendingMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
   const [unreadByFriend, setUnreadByFriend] = useState<Record<string, number>>(() => {
     const out: Record<string, number> = {};
     friends.forEach((friend) => {
@@ -59,34 +58,64 @@ export function SocialNetworkClient({
   }, [initialMessages]);
 
   useEffect(() => {
+    if (!selectedChatId) {
+      setChatMessages([]);
+      return;
+    }
+
     let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
 
     async function loadMessagesForSelectedFriend() {
-      if (!selectedChatId) {
-        setChatMessages([]);
+      const response = await fetch(`/api/chat?mode=messages&friendId=${encodeURIComponent(selectedChatId)}`, {
+        method: "GET",
+        cache: "no-store",
+      });
+      if (!response.ok) {
         return;
       }
-
-      const { data } = await supabase
-        .from("chat_messages")
-        .select("id, sender_id, receiver_id, body, created_at, read_at")
-        .or(
-          `and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedChatId}),and(sender_id.eq.${selectedChatId},receiver_id.eq.${currentUserId})`
-        )
-        .order("created_at", { ascending: true })
-        .limit(200);
+      const payload = (await response.json()) as { messages?: ChatMessageItem[] };
 
       if (!cancelled) {
-        setChatMessages((data || []) as ChatMessageItem[]);
+        setChatMessages(payload.messages || []);
       }
     }
 
     loadMessagesForSelectedFriend();
+    timer = setInterval(loadMessagesForSelectedFriend, 1500);
 
     return () => {
       cancelled = true;
+      if (timer) clearInterval(timer);
     };
-  }, [currentUserId, selectedChatId, supabase]);
+  }, [selectedChatId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    async function loadUnreadCounts() {
+      const response = await fetch("/api/chat?mode=unread", {
+        method: "GET",
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        return;
+      }
+      const payload = (await response.json()) as { unreadByFriend?: Record<string, number> };
+      if (!cancelled) {
+        setUnreadByFriend(payload.unreadByFriend || {});
+      }
+    }
+
+    loadUnreadCounts();
+    timer = setInterval(loadUnreadCounts, 1800);
+
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     if (!selectedChatId) {
@@ -113,63 +142,17 @@ export function SocialNetworkClient({
     );
     setUnreadByFriend((prev) => ({ ...prev, [selectedChatId]: 0 }));
 
-    supabase
-      .from("chat_messages")
-      .update({ read_at: readAt })
-      .in("id", unreadIds)
-      .eq("receiver_id", currentUserId);
-  }, [chatMessages, currentUserId, selectedChatId, supabase]);
-
-  useEffect(() => {
-    const channel = supabase
-      .channel(`social-chat-${currentUserId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "chat_messages",
-        },
-        (payload) => {
-          const message = payload.new as ChatMessageItem;
-          const related =
-            (message.sender_id === currentUserId && message.receiver_id === selectedChatId) ||
-            (message.sender_id === selectedChatId && message.receiver_id === currentUserId);
-
-          if (related) {
-            setChatMessages((prev) =>
-              prev.some((entry) => entry.id === message.id) ? prev : [...prev, message]
-            );
-          }
-
-          if (message.receiver_id === currentUserId && message.sender_id !== selectedChatId) {
-            setUnreadByFriend((prev) => ({
-              ...prev,
-              [message.sender_id]: (prev[message.sender_id] || 0) + 1,
-            }));
-          }
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "chat_messages",
-        },
-        (payload) => {
-          const message = payload.new as ChatMessageItem;
-          setChatMessages((prev) =>
-            prev.map((entry) => (entry.id === message.id ? message : entry))
-          );
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentUserId, selectedChatId, supabase]);
+    fetch("/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        action: "mark_read",
+        friendId: selectedChatId,
+      }),
+    });
+  }, [chatMessages, currentUserId, selectedChatId]);
 
   async function handleSend(event: FormEvent) {
     event.preventDefault();
@@ -181,6 +164,7 @@ export function SocialNetworkClient({
     const body = pendingMessage.trim();
     setPendingMessage("");
     setIsSending(true);
+    setChatError(null);
 
     const optimisticId = `tmp-${Date.now()}`;
     const optimisticMessage: ChatMessageItem = {
@@ -194,22 +178,32 @@ export function SocialNetworkClient({
 
     setChatMessages((prev) => [...prev, optimisticMessage]);
 
-    const { data, error } = await supabase
-      .from("chat_messages")
-      .insert({
-        sender_id: currentUserId,
-        receiver_id: selectedChatId,
-        body,
-      })
-      .select("id, sender_id, receiver_id, body, created_at, read_at")
-      .single();
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        action: "send",
+        friendId: selectedChatId,
+        message: body,
+      }),
+    });
 
-    if (error || !data) {
+    if (!response.ok) {
       setChatMessages((prev) => prev.filter((entry) => entry.id !== optimisticId));
+      setChatError("Bericht kon niet verzonden worden.");
     } else {
-      setChatMessages((prev) =>
-        prev.map((entry) => (entry.id === optimisticId ? (data as ChatMessageItem) : entry))
-      );
+      const payload = (await response.json()) as { message?: ChatMessageItem };
+      const data = payload.message;
+      if (!data) {
+        setChatMessages((prev) => prev.filter((entry) => entry.id !== optimisticId));
+        setChatError("Bericht kon niet verzonden worden.");
+      } else {
+        setChatMessages((prev) =>
+          prev.map((entry) => (entry.id === optimisticId ? data : entry))
+        );
+      }
     }
 
     setIsSending(false);
@@ -288,6 +282,11 @@ export function SocialNetworkClient({
                 })
               )}
             </div>
+            {chatError ? (
+              <p className="mb-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                {chatError}
+              </p>
+            ) : null}
             <form onSubmit={handleSend} className="space-y-3">
               <textarea
                 value={pendingMessage}
