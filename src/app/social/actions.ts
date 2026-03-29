@@ -40,9 +40,15 @@ async function findTargetUserIdByIdentifier(
     return { error: "missing_identifier" };
   }
 
-  let matches:
-    | Array<{ id: string; username: string | null; full_name: string | null; email: string | null; phone: string | null }>
-    | null = null;
+  type ProfileMatch = {
+    id: string;
+    username: string | null;
+    full_name: string | null;
+    email: string | null;
+    phone: string | null;
+  };
+
+  let matches: ProfileMatch[] = [];
 
   if (looksLikeEmail(identifier)) {
     const { data, error } = await supabase
@@ -51,7 +57,7 @@ async function findTargetUserIdByIdentifier(
       .eq("email", identifier.toLowerCase())
       .limit(2);
     if (error) return { error: "request_failed" };
-    matches = data as typeof matches;
+    matches = (data || []) as ProfileMatch[];
   } else if (identifier.startsWith("@")) {
     const username = cleanUsername(identifier);
     const { data, error } = await supabase
@@ -60,7 +66,7 @@ async function findTargetUserIdByIdentifier(
       .ilike("username", username)
       .limit(2);
     if (error) return { error: "request_failed" };
-    matches = data as typeof matches;
+    matches = (data || []) as ProfileMatch[];
   } else if (looksLikePhone(identifier)) {
     const normalizedPhone = normalizePhoneForSearch(identifier);
     const { data, error } = await supabase
@@ -69,7 +75,7 @@ async function findTargetUserIdByIdentifier(
       .ilike("phone", `%${normalizedPhone.slice(1)}%`)
       .limit(2);
     if (error) return { error: "request_failed" };
-    matches = data as typeof matches;
+    matches = (data || []) as ProfileMatch[];
   } else {
     const username = cleanUsername(identifier);
     const { data: usernameData, error: usernameError } = await supabase
@@ -80,7 +86,7 @@ async function findTargetUserIdByIdentifier(
     if (usernameError) return { error: "request_failed" };
 
     if ((usernameData || []).length > 0) {
-      matches = usernameData as typeof matches;
+      matches = (usernameData || []) as ProfileMatch[];
     } else {
       const { data: fullNameData, error: fullNameError } = await supabase
         .from("profiles")
@@ -88,11 +94,11 @@ async function findTargetUserIdByIdentifier(
         .ilike("full_name", `%${identifier}%`)
         .limit(2);
       if (fullNameError) return { error: "request_failed" };
-      matches = fullNameData as typeof matches;
+      matches = (fullNameData || []) as ProfileMatch[];
     }
   }
 
-  const filtered = (matches || []).filter((row) => row.id !== currentUserId);
+  const filtered = matches.filter((row) => row.id !== currentUserId);
   if (filtered.length === 0) {
     return { error: "user_not_found" };
   }
