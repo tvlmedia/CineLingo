@@ -3,6 +3,7 @@ create extension if not exists "pgcrypto";
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   username text unique not null,
+  email text unique,
   full_name text,
   phone text,
   avatar_url text,
@@ -17,6 +18,9 @@ alter table public.profiles
 add column if not exists phone text;
 
 alter table public.profiles
+add column if not exists email text;
+
+alter table public.profiles
 add column if not exists avatar_url text;
 
 alter table public.profiles
@@ -24,6 +28,16 @@ add column if not exists instagram_url text;
 
 do $$
 begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'profiles_email_unique'
+      and conrelid = 'public.profiles'::regclass
+  ) then
+    alter table public.profiles
+    add constraint profiles_email_unique unique (email);
+  end if;
+
   if not exists (
     select 1
     from pg_constraint
@@ -69,15 +83,17 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, username, full_name, phone)
+  insert into public.profiles (id, username, email, full_name, phone)
   values (
     new.id,
     coalesce(nullif(new.raw_user_meta_data->>'username', ''), split_part(new.email, '@', 1)),
+    nullif(new.email, ''),
     nullif(new.raw_user_meta_data->>'full_name', ''),
     nullif(new.raw_user_meta_data->>'phone', '')
   )
   on conflict (id) do update
   set username = excluded.username,
+      email = excluded.email,
       full_name = excluded.full_name,
       phone = excluded.phone;
 
@@ -91,6 +107,12 @@ create trigger on_auth_user_created
 after insert on auth.users
 for each row
 execute function public.handle_new_user();
+
+update public.profiles p
+set email = u.email
+from auth.users u
+where p.id = u.id
+  and (p.email is null or btrim(p.email) = '');
 
 insert into storage.buckets (id, name, public)
 values ('avatars', 'avatars', true)
@@ -211,6 +233,36 @@ with check (
   (auth.uid() = user_a or auth.uid() = user_b)
   and user_a < user_b
 );
+
+create table if not exists public.chat_messages (
+  id uuid primary key default gen_random_uuid(),
+  sender_id uuid not null references auth.users(id) on delete cascade,
+  receiver_id uuid not null references auth.users(id) on delete cascade,
+  body text not null,
+  created_at timestamptz not null default now(),
+  constraint chat_messages_not_self check (sender_id <> receiver_id),
+  constraint chat_messages_body_not_empty check (length(btrim(body)) > 0)
+);
+
+create index if not exists chat_messages_sender_receiver_created_idx
+on public.chat_messages (sender_id, receiver_id, created_at);
+
+create index if not exists chat_messages_receiver_sender_created_idx
+on public.chat_messages (receiver_id, sender_id, created_at);
+
+alter table public.chat_messages enable row level security;
+
+drop policy if exists "Users can read own chat messages" on public.chat_messages;
+create policy "Users can read own chat messages"
+on public.chat_messages
+for select
+using (auth.uid() = sender_id or auth.uid() = receiver_id);
+
+drop policy if exists "Users can send own chat messages" on public.chat_messages;
+create policy "Users can send own chat messages"
+on public.chat_messages
+for insert
+with check (auth.uid() = sender_id and sender_id <> receiver_id);
 
 create table if not exists public.reports (
   id uuid primary key default gen_random_uuid(),
