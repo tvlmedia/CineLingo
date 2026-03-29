@@ -239,10 +239,14 @@ create table if not exists public.chat_messages (
   sender_id uuid not null references auth.users(id) on delete cascade,
   receiver_id uuid not null references auth.users(id) on delete cascade,
   body text not null,
+  read_at timestamptz,
   created_at timestamptz not null default now(),
   constraint chat_messages_not_self check (sender_id <> receiver_id),
   constraint chat_messages_body_not_empty check (length(btrim(body)) > 0)
 );
+
+alter table public.chat_messages
+add column if not exists read_at timestamptz;
 
 create index if not exists chat_messages_sender_receiver_created_idx
 on public.chat_messages (sender_id, receiver_id, created_at);
@@ -262,7 +266,24 @@ drop policy if exists "Users can send own chat messages" on public.chat_messages
 create policy "Users can send own chat messages"
 on public.chat_messages
 for insert
-with check (auth.uid() = sender_id and sender_id <> receiver_id);
+with check (
+  auth.uid() = sender_id
+  and sender_id <> receiver_id
+  and exists (
+    select 1
+    from public.friendships f
+    where
+      (f.user_a = sender_id and f.user_b = receiver_id)
+      or (f.user_b = sender_id and f.user_a = receiver_id)
+  )
+);
+
+drop policy if exists "Receivers can mark chat messages as read" on public.chat_messages;
+create policy "Receivers can mark chat messages as read"
+on public.chat_messages
+for update
+using (auth.uid() = receiver_id)
+with check (auth.uid() = receiver_id);
 
 create table if not exists public.reports (
   id uuid primary key default gen_random_uuid(),

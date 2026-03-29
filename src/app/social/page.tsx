@@ -5,10 +5,10 @@ import {
   acceptFriendRequest,
   cancelFriendRequest,
   declineFriendRequest,
-  sendChatMessage,
   sendFriendRequest,
 } from "./actions";
 import { Card, Container } from "@/components/ui";
+import { SocialNetworkClient } from "./SocialNetworkClient";
 
 type SocialSearchParams = {
   error?: string;
@@ -81,6 +81,7 @@ type ChatMessageRow = {
   receiver_id: string;
   body: string;
   created_at: string;
+  read_at: string | null;
 };
 
 export default async function SocialPage({
@@ -161,7 +162,7 @@ export default async function SocialPage({
   if (selectedChatId && friendIds.includes(selectedChatId)) {
     const { data } = await supabase
       .from("chat_messages")
-      .select("id, sender_id, receiver_id, body, created_at")
+      .select("id, sender_id, receiver_id, body, created_at, read_at")
       .or(
         `and(sender_id.eq.${user.id},receiver_id.eq.${selectedChatId}),and(sender_id.eq.${selectedChatId},receiver_id.eq.${user.id})`
       )
@@ -169,6 +170,35 @@ export default async function SocialPage({
       .limit(120);
     chatMessages = (data || []) as ChatMessageRow[];
   }
+
+  const friends = (friendshipRows || []).map((row) => {
+    const friendId = (row.user_a === user.id ? row.user_b : row.user_a) as string;
+    const friend = profilesById.get(friendId);
+    return {
+      id: friendId,
+      username: friend?.username || "unknown",
+      fullName: friend?.full_name || friend?.username || "Unknown user",
+      unreadCount: 0,
+    };
+  });
+
+  const unreadCounts: Record<string, number> = {};
+  if (friends.length > 0) {
+    const { data: unreadRows } = await supabase
+      .from("chat_messages")
+      .select("sender_id")
+      .eq("receiver_id", user.id)
+      .is("read_at", null);
+    (unreadRows || []).forEach((row) => {
+      const senderId = row.sender_id as string;
+      unreadCounts[senderId] = (unreadCounts[senderId] || 0) + 1;
+    });
+  }
+
+  const friendsWithUnread = friends.map((friend) => ({
+    ...friend,
+    unreadCount: unreadCounts[friend.id] || 0,
+  }));
 
   return (
     <main className="min-h-screen py-10 md:py-14">
@@ -289,76 +319,12 @@ export default async function SocialPage({
             </Card>
           </div>
 
-          <div className="space-y-6">
-            <Card>
-              <h2 className="mb-3 text-2xl font-semibold">Friends</h2>
-              <div className="space-y-3">
-                {(friendshipRows || []).length === 0 ? (
-                  <p className="text-sm text-muted">No friends yet.</p>
-                ) : (
-                  (friendshipRows || []).map((row) => {
-                    const friendId = (row.user_a === user.id ? row.user_b : row.user_a) as string;
-                    const friend = profilesById.get(friendId);
-                    const label = friend?.full_name || friend?.username || "Unknown user";
-                    const isActive = selectedChatId === friendId;
-
-                    return (
-                      <Link
-                        key={`${String(row.user_a)}-${String(row.user_b)}`}
-                        href={`/social?chat=${friendId}`}
-                        className={`block rounded-2xl border p-3 transition ${
-                          isActive
-                            ? "border-accent bg-white/10"
-                            : "border-border bg-white/5 hover:bg-white/10"
-                        }`}
-                      >
-                        <p className="font-semibold">{label}</p>
-                        <p className="text-xs text-muted">@{friend?.username || "unknown"}</p>
-                      </Link>
-                    );
-                  })
-                )}
-              </div>
-            </Card>
-
-            <Card>
-              <h2 className="mb-3 text-2xl font-semibold">Chat</h2>
-              {!selectedChatId || !friendIds.includes(selectedChatId) ? (
-                <p className="text-sm text-muted">Select a friend to start chatting.</p>
-              ) : (
-                <>
-                  <div className="mb-4 h-[320px] space-y-2 overflow-y-auto rounded-2xl border border-border bg-white/5 p-3">
-                    {(chatMessages || []).length === 0 ? (
-                      <p className="text-sm text-muted">No messages yet.</p>
-                    ) : (
-                      chatMessages.map((messageItem) => {
-                        const mine = messageItem.sender_id === user.id;
-                        return (
-                          <div
-                            key={messageItem.id}
-                            className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
-                              mine
-                                ? "ml-auto bg-accent text-[#04231d]"
-                                : "border border-border bg-[#0f2242] text-foreground"
-                            }`}
-                          >
-                            {messageItem.body}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                  <form action={sendChatMessage} className="space-y-3">
-                    <input type="hidden" name="receiverId" value={selectedChatId} />
-                    <textarea name="message" rows={3} placeholder="Write a message..." required />
-                    <button className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-[#04231d]">
-                      Send
-                    </button>
-                  </form>
-                </>
-              )}
-            </Card>
-          </div>
+          <SocialNetworkClient
+            currentUserId={user.id}
+            friends={friendsWithUnread}
+            initialSelectedChatId={selectedChatId}
+            initialMessages={chatMessages}
+          />
         </div>
       </Container>
     </main>
