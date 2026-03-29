@@ -75,6 +75,14 @@ type ProfileLite = {
   phone: string | null;
 };
 
+type ChatMessageRow = {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  body: string;
+  created_at: string;
+};
+
 export default async function SocialPage({
   searchParams,
 }: {
@@ -148,15 +156,7 @@ export default async function SocialPage({
     (row.user_a === user.id ? row.user_b : row.user_a) as string
   );
 
-  let chatMessages:
-    | Array<{
-        id: string;
-        sender_id: string;
-        receiver_id: string;
-        body: string;
-        created_at: string;
-      }>
-    | null = null;
+  let chatMessages: ChatMessageRow[] = [];
 
   if (selectedChatId && friendIds.includes(selectedChatId)) {
     const { data } = await supabase
@@ -167,7 +167,7 @@ export default async function SocialPage({
       )
       .order("created_at", { ascending: true })
       .limit(120);
-    chatMessages = (data || []) as typeof chatMessages;
+    chatMessages = (data || []) as ChatMessageRow[];
   }
 
   return (
@@ -331,7 +331,7 @@ export default async function SocialPage({
                     {(chatMessages || []).length === 0 ? (
                       <p className="text-sm text-muted">No messages yet.</p>
                     ) : (
-                      (chatMessages || []).map((messageItem) => {
+                      chatMessages.map((messageItem) => {
                         const mine = messageItem.sender_id === user.id;
                         return (
                           <div
