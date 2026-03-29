@@ -16,22 +16,71 @@ export async function updateProfile(formData: FormData): Promise<void> {
   const bio = String(formData.get("bio") || "").trim();
   const roleFocus = String(formData.get("roleFocus") || "").trim();
   const experienceLevel = String(formData.get("experienceLevel") || "").trim();
+  const avatarImageData = String(formData.get("avatarImageData") || "").trim();
+  const removeAvatar = String(formData.get("removeAvatar") || "") === "1";
   const phone = normalizePhone(phoneCountryCode, phoneNationalNumber);
 
   if (!username || !phone) {
     redirect("/profile?error=save_failed");
   }
 
+  let avatarUrl: string | null | undefined;
+
+  if (removeAvatar) {
+    avatarUrl = null;
+    await supabase.storage.from("avatars").remove([`${user.id}/avatar.jpg`]);
+  } else if (avatarImageData) {
+    const match = avatarImageData.match(/^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/);
+    if (!match) {
+      redirect("/profile?error=save_failed");
+    }
+
+    const imageBytes = Buffer.from(match[1], "base64");
+    if (imageBytes.length === 0 || imageBytes.length > 6 * 1024 * 1024) {
+      redirect("/profile?error=save_failed");
+    }
+
+    const avatarPath = `${user.id}/avatar.jpg`;
+    const { error: uploadError } = await supabase.storage
+      .from("avatars")
+      .upload(avatarPath, imageBytes, {
+        contentType: "image/jpeg",
+        cacheControl: "3600",
+        upsert: true,
+      });
+
+    if (uploadError) {
+      redirect("/profile?error=save_failed");
+    }
+
+    const { data: publicData } = supabase.storage.from("avatars").getPublicUrl(avatarPath);
+    avatarUrl = `${publicData.publicUrl}?v=${Date.now()}`;
+  }
+
+  const updateData: {
+    username: string;
+    full_name: string;
+    phone: string;
+    bio: string;
+    role_focus: string;
+    experience_level: string;
+    avatar_url?: string | null;
+  } = {
+    username,
+    full_name: fullName,
+    phone,
+    bio,
+    role_focus: roleFocus,
+    experience_level: experienceLevel,
+  };
+
+  if (avatarUrl !== undefined) {
+    updateData.avatar_url = avatarUrl;
+  }
+
   const { error } = await supabase
     .from("profiles")
-    .update({
-      username,
-      full_name: fullName,
-      phone,
-      bio,
-      role_focus: roleFocus,
-      experience_level: experienceLevel,
-    })
+    .update(updateData)
     .eq("id", user.id);
 
   if (error) {

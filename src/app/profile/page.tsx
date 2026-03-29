@@ -1,7 +1,9 @@
 import { requireUser } from "@/lib/auth";
-import { PHONE_COUNTRY_CODES, splitPhone } from "@/lib/phone";
+import Link from "next/link";
+import { splitPhone } from "@/lib/phone";
 import { createClient } from "@/lib/supabase/server";
-import { Card, Container, Input, TextArea } from "@/components/ui";
+import { Card, Container } from "@/components/ui";
+import { ProfileForm } from "./ProfileForm";
 import { updateProfile } from "./actions";
 
 export default async function ProfilePage({
@@ -15,7 +17,7 @@ export default async function ProfilePage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("username, full_name, phone, bio, role_focus, experience_level")
+    .select("username, full_name, phone, avatar_url, bio, role_focus, experience_level")
     .eq("id", user.id)
     .single();
   const phoneFields = splitPhone(profile?.phone);
@@ -25,6 +27,14 @@ export default async function ProfilePage({
       <Container>
         <div className="mx-auto max-w-2xl">
           <Card>
+            <div className="mb-6">
+              <Link
+                href="/dashboard"
+                className="inline-flex rounded-xl border border-border px-3 py-2 text-sm text-muted transition hover:bg-white/5"
+              >
+                Back to main menu
+              </Link>
+            </div>
             <h1 className="mb-6 text-3xl font-bold">Your profile</h1>
 
             {params?.saved ? (
@@ -39,52 +49,19 @@ export default async function ProfilePage({
               </p>
             ) : null}
 
-            <form action={updateProfile} className="space-y-4">
-              <div>
-                <label className="mb-2 block text-sm text-muted">Username</label>
-                <Input name="username" defaultValue={profile?.username || ""} required />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-muted">Full name</label>
-                <Input name="fullName" defaultValue={profile?.full_name || ""} />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-muted">Phone number</label>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-[220px_1fr]">
-                  <select name="phoneCountryCode" defaultValue={phoneFields.countryCode} required>
-                    {PHONE_COUNTRY_CODES.map((entry) => (
-                      <option key={entry.value} value={entry.value}>
-                        {entry.label}
-                      </option>
-                    ))}
-                  </select>
-                  <Input
-                    name="phoneNationalNumber"
-                    type="tel"
-                    inputMode="numeric"
-                    autoComplete="tel-national"
-                    defaultValue={phoneFields.nationalNumber}
-                    placeholder="6 12345678"
-                    required
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-muted">Bio</label>
-                <TextArea name="bio" rows={5} defaultValue={profile?.bio || ""} />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-muted">Role focus</label>
-                <Input name="roleFocus" defaultValue={profile?.role_focus || ""} placeholder="DOP, gaffer, AC, director..." />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-muted">Experience level</label>
-                <Input name="experienceLevel" defaultValue={profile?.experience_level || ""} placeholder="Beginner, intermediate, advanced..." />
-              </div>
-              <button className="w-full rounded-2xl bg-accent px-4 py-3 font-semibold">
-                Save profile
-              </button>
-            </form>
+            <ProfileForm
+              action={updateProfile}
+              profile={{
+                username: profile?.username || "",
+                fullName: profile?.full_name || "",
+                phoneCountryCode: phoneFields.countryCode,
+                phoneNationalNumber: phoneFields.nationalNumber,
+                avatarUrl: profile?.avatar_url || "",
+                bio: profile?.bio || "",
+                roleFocus: profile?.role_focus || "",
+                experienceLevel: profile?.experience_level || "",
+              }}
+            />
           </Card>
         </div>
       </Container>

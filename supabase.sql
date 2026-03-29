@@ -5,6 +5,7 @@ create table if not exists public.profiles (
   username text unique not null,
   full_name text,
   phone text,
+  avatar_url text,
   bio text default '',
   role_focus text default '',
   experience_level text default '',
@@ -13,6 +14,9 @@ create table if not exists public.profiles (
 
 alter table public.profiles
 add column if not exists phone text;
+
+alter table public.profiles
+add column if not exists avatar_url text;
 
 do $$
 begin
@@ -30,16 +34,19 @@ end $$;
 
 alter table public.profiles enable row level security;
 
+drop policy if exists "Users can view own profile" on public.profiles;
 create policy "Users can view own profile"
 on public.profiles
 for select
 using (auth.uid() = id);
 
+drop policy if exists "Users can insert own profile" on public.profiles;
 create policy "Users can insert own profile"
 on public.profiles
 for insert
 with check (auth.uid() = id);
 
+drop policy if exists "Users can update own profile" on public.profiles;
 create policy "Users can update own profile"
 on public.profiles
 for update
@@ -75,6 +82,51 @@ after insert on auth.users
 for each row
 execute function public.handle_new_user();
 
+insert into storage.buckets (id, name, public)
+values ('avatars', 'avatars', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Public can view avatars" on storage.objects;
+create policy "Public can view avatars"
+on storage.objects
+for select
+using (bucket_id = 'avatars');
+
+drop policy if exists "Users can upload own avatars" on storage.objects;
+create policy "Users can upload own avatars"
+on storage.objects
+for insert
+with check (
+  bucket_id = 'avatars'
+  and auth.role() = 'authenticated'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+drop policy if exists "Users can update own avatars" on storage.objects;
+create policy "Users can update own avatars"
+on storage.objects
+for update
+using (
+  bucket_id = 'avatars'
+  and auth.role() = 'authenticated'
+  and (storage.foldername(name))[1] = auth.uid()::text
+)
+with check (
+  bucket_id = 'avatars'
+  and auth.role() = 'authenticated'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+drop policy if exists "Users can delete own avatars" on storage.objects;
+create policy "Users can delete own avatars"
+on storage.objects
+for delete
+using (
+  bucket_id = 'avatars'
+  and auth.role() = 'authenticated'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
 create table if not exists public.reports (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users(id) on delete set null,
@@ -87,11 +139,13 @@ create table if not exists public.reports (
 
 alter table public.reports enable row level security;
 
+drop policy if exists "Users can insert reports" on public.reports;
 create policy "Users can insert reports"
 on public.reports
 for insert
 with check (auth.uid() = user_id);
 
+drop policy if exists "Users can view own reports" on public.reports;
 create policy "Users can view own reports"
 on public.reports
 for select
