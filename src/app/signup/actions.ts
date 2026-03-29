@@ -55,6 +55,37 @@ export async function signUp(formData: FormData): Promise<void> {
 
   const supabase = await createClient();
 
+  const [{ data: existingUsername }, { data: existingPhone }, { data: existingEmail }] =
+    await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id")
+        .ilike("username", username)
+        .limit(1),
+      supabase
+        .from("profiles")
+        .select("id")
+        .eq("phone", phone)
+        .limit(1),
+      supabase
+        .from("profiles")
+        .select("id")
+        .ilike("email", email.toLowerCase())
+        .limit(1),
+    ]);
+
+  if ((existingUsername || []).length > 0) {
+    redirect("/signup?error=username_taken");
+  }
+
+  if ((existingPhone || []).length > 0) {
+    redirect("/signup?error=phone_taken");
+  }
+
+  if ((existingEmail || []).length > 0) {
+    redirect("/signup?error=email_taken");
+  }
+
   const { error } = await supabase.auth.signUp({
     email,
     password,
@@ -69,6 +100,12 @@ export async function signUp(formData: FormData): Promise<void> {
 
   if (error) {
     const errorCode = mapSignUpError(error?.message);
+    if (errorCode === "signup_failed") {
+      console.error("Signup failed with unknown error", {
+        message: error.message,
+        status: (error as { status?: number }).status,
+      });
+    }
     redirect(`/signup?error=${errorCode}`);
   }
 

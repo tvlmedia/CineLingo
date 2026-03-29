@@ -16,14 +16,16 @@ export default async function SignupPage({
         ? "Voer een geldig telefoonnummer in met landcode."
         : error === "email_taken"
           ? "Dit e-mailadres is al in gebruik."
-          : error === "username_taken"
+        : error === "username_taken"
             ? "Deze username is al bezet. Kies een andere."
-            : error === "weak_password"
+          : error === "phone_taken"
+            ? "Dit telefoonnummer is al gekoppeld aan een account."
+          : error === "weak_password"
               ? "Kies een sterker wachtwoord (minimaal 6 tekens)."
               : error === "signup_conflict"
                 ? "Er is al een account met deze gegevens. Probeer een andere username of e-mail."
                 : error
-                  ? "Signup failed. Try again with a different email, username or phone number."
+                  ? "Account aanmaken is mislukt door een serverfout. Probeer het opnieuw over 1 minuut."
                   : null;
 
   return (
