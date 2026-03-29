@@ -44,6 +44,12 @@ on public.profiles
 for select
 using (auth.uid() = id);
 
+drop policy if exists "Authenticated users can view profiles" on public.profiles;
+create policy "Authenticated users can view profiles"
+on public.profiles
+for select
+using (auth.role() = 'authenticated');
+
 drop policy if exists "Users can insert own profile" on public.profiles;
 create policy "Users can insert own profile"
 on public.profiles
@@ -129,6 +135,81 @@ using (
   bucket_id = 'avatars'
   and auth.role() = 'authenticated'
   and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+create table if not exists public.friend_requests (
+  id uuid primary key default gen_random_uuid(),
+  sender_id uuid not null references auth.users(id) on delete cascade,
+  receiver_id uuid not null references auth.users(id) on delete cascade,
+  status text not null default 'pending',
+  created_at timestamptz not null default now(),
+  responded_at timestamptz,
+  constraint friend_requests_sender_receiver_unique unique (sender_id, receiver_id),
+  constraint friend_requests_not_self check (sender_id <> receiver_id),
+  constraint friend_requests_status_valid check (status in ('pending', 'accepted', 'declined'))
+);
+
+alter table public.friend_requests enable row level security;
+
+drop policy if exists "Users can read own friend requests" on public.friend_requests;
+create policy "Users can read own friend requests"
+on public.friend_requests
+for select
+using (auth.uid() = sender_id or auth.uid() = receiver_id);
+
+drop policy if exists "Users can send friend requests" on public.friend_requests;
+create policy "Users can send friend requests"
+on public.friend_requests
+for insert
+with check (
+  auth.uid() = sender_id
+  and sender_id <> receiver_id
+  and status = 'pending'
+);
+
+drop policy if exists "Senders can update own friend requests" on public.friend_requests;
+create policy "Senders can update own friend requests"
+on public.friend_requests
+for update
+using (auth.uid() = sender_id)
+with check (auth.uid() = sender_id);
+
+drop policy if exists "Receivers can update incoming friend requests" on public.friend_requests;
+create policy "Receivers can update incoming friend requests"
+on public.friend_requests
+for update
+using (auth.uid() = receiver_id)
+with check (auth.uid() = receiver_id);
+
+drop policy if exists "Senders can cancel pending friend requests" on public.friend_requests;
+create policy "Senders can cancel pending friend requests"
+on public.friend_requests
+for delete
+using (auth.uid() = sender_id and status = 'pending');
+
+create table if not exists public.friendships (
+  user_a uuid not null references auth.users(id) on delete cascade,
+  user_b uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  constraint friendships_pk primary key (user_a, user_b),
+  constraint friendships_ordered_pair check (user_a < user_b)
+);
+
+alter table public.friendships enable row level security;
+
+drop policy if exists "Users can read own friendships" on public.friendships;
+create policy "Users can read own friendships"
+on public.friendships
+for select
+using (auth.uid() = user_a or auth.uid() = user_b);
+
+drop policy if exists "Users can create friendships they belong to" on public.friendships;
+create policy "Users can create friendships they belong to"
+on public.friendships
+for insert
+with check (
+  (auth.uid() = user_a or auth.uid() = user_b)
+  and user_a < user_b
 );
 
 create table if not exists public.reports (
