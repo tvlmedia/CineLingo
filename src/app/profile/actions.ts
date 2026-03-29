@@ -40,6 +40,7 @@ export async function updateProfile(formData: FormData): Promise<void> {
   }
 
   let avatarUrl: string | null | undefined;
+  let avatarUploadFailed = false;
 
   if (removeAvatar) {
     avatarUrl = null;
@@ -47,29 +48,35 @@ export async function updateProfile(formData: FormData): Promise<void> {
   } else if (avatarImageData) {
     const match = avatarImageData.match(/^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/);
     if (!match) {
-      redirect("/profile?error=save_failed");
+      avatarUploadFailed = true;
     }
 
-    const imageBytes = Buffer.from(match[1], "base64");
-    if (imageBytes.length === 0 || imageBytes.length > 6 * 1024 * 1024) {
-      redirect("/profile?error=save_failed");
+    if (match) {
+      const imageBytes = Buffer.from(match[1], "base64");
+      if (imageBytes.length === 0 || imageBytes.length > 6 * 1024 * 1024) {
+        avatarUploadFailed = true;
+      } else {
+        const avatarPath = `${user.id}/avatar.jpg`;
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(avatarPath, imageBytes, {
+            contentType: "image/jpeg",
+            cacheControl: "3600",
+            upsert: true,
+          });
+
+        if (uploadError) {
+          avatarUploadFailed = true;
+        } else {
+          const { data: publicData } = supabase.storage.from("avatars").getPublicUrl(avatarPath);
+          avatarUrl = `${publicData.publicUrl}?v=${Date.now()}`;
+        }
+      }
     }
 
-    const avatarPath = `${user.id}/avatar.jpg`;
-    const { error: uploadError } = await supabase.storage
-      .from("avatars")
-      .upload(avatarPath, imageBytes, {
-        contentType: "image/jpeg",
-        cacheControl: "3600",
-        upsert: true,
-      });
-
-    if (uploadError) {
-      redirect("/profile?error=save_failed");
+    if (avatarUploadFailed) {
+      avatarUrl = undefined;
     }
-
-    const { data: publicData } = supabase.storage.from("avatars").getPublicUrl(avatarPath);
-    avatarUrl = `${publicData.publicUrl}?v=${Date.now()}`;
   }
 
   const updateData: {
@@ -100,6 +107,10 @@ export async function updateProfile(formData: FormData): Promise<void> {
 
   if (error) {
     redirect("/profile?error=save_failed");
+  }
+
+  if (avatarUploadFailed) {
+    redirect("/profile?saved=1&warn=avatar_upload_failed");
   }
 
   redirect("/profile?saved=1");

@@ -9,7 +9,7 @@ import { updateProfile } from "./actions";
 export default async function ProfilePage({
   searchParams,
 }: {
-  searchParams?: Promise<{ error?: string; saved?: string }>;
+  searchParams?: Promise<{ error?: string; saved?: string; warn?: string }>;
 }) {
   const user = await requireUser();
   const supabase = await createClient();
@@ -70,6 +70,12 @@ export default async function ProfilePage({
             {params?.saved ? (
               <p className="mb-4 rounded-2xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-200">
                 Profile saved.
+              </p>
+            ) : null}
+
+            {params?.warn === "avatar_upload_failed" ? (
+              <p className="mb-4 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-200">
+                Profile saved, but photo upload failed. Check Supabase avatar bucket/policies.
               </p>
             ) : null}
 
