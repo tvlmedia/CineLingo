@@ -8,8 +8,9 @@ export async function signUp(formData: FormData): Promise<void> {
   const password = String(formData.get("password") || "");
   const username = String(formData.get("username") || "").trim();
   const fullName = String(formData.get("fullName") || "").trim();
+  const phone = String(formData.get("phone") || "").trim();
 
-  if (!email || !password || !username) {
+  if (!email || !password || !username || !phone) {
     redirect("/signup?error=missing_fields");
   }
 
@@ -22,6 +23,7 @@ export async function signUp(formData: FormData): Promise<void> {
       data: {
         username,
         full_name: fullName,
+        phone,
       },
     },
   });
@@ -30,5 +32,5 @@ export async function signUp(formData: FormData): Promise<void> {
     redirect("/signup?error=signup_failed");
   }
 
-  redirect("/dashboard");
+  redirect("/check-email");
 }
