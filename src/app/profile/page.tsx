@@ -15,12 +15,38 @@ export default async function ProfilePage({
   const supabase = await createClient();
   const params = await searchParams;
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("username, full_name, phone, avatar_url, bio, role_focus, experience_level")
     .eq("id", user.id)
     .single();
-  const phoneFields = splitPhone(profile?.phone);
+
+  if (profileError || !profile) {
+    return (
+      <main className="min-h-screen py-16">
+        <Container>
+          <div className="mx-auto max-w-2xl">
+            <Card>
+              <div className="mb-6">
+                <Link
+                  href="/dashboard"
+                  className="inline-flex rounded-xl border border-border px-3 py-2 text-sm text-muted transition hover:bg-white/5"
+                >
+                  Back to main menu
+                </Link>
+              </div>
+              <h1 className="mb-3 text-3xl font-bold">Your profile</h1>
+              <p className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                We could not load your profile safely. No fields were changed.
+              </p>
+            </Card>
+          </div>
+        </Container>
+      </main>
+    );
+  }
+
+  const phoneFields = splitPhone(profile.phone);
 
   return (
     <main className="min-h-screen py-16">
@@ -52,14 +78,14 @@ export default async function ProfilePage({
             <ProfileForm
               action={updateProfile}
               profile={{
-                username: profile?.username || "",
-                fullName: profile?.full_name || "",
+                username: profile.username || "",
+                fullName: profile.full_name || "",
                 phoneCountryCode: phoneFields.countryCode,
                 phoneNationalNumber: phoneFields.nationalNumber,
-                avatarUrl: profile?.avatar_url || "",
-                bio: profile?.bio || "",
-                roleFocus: profile?.role_focus || "",
-                experienceLevel: profile?.experience_level || "",
+                avatarUrl: profile.avatar_url || "",
+                bio: profile.bio || "",
+                roleFocus: profile.role_focus || "",
+                experienceLevel: profile.experience_level || "",
               }}
             />
           </Card>

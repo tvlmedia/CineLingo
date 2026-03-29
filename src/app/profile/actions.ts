@@ -8,6 +8,15 @@ import { createClient } from "@/lib/supabase/server";
 export async function updateProfile(formData: FormData): Promise<void> {
   const user = await requireUser();
   const supabase = await createClient();
+  const { data: existingProfile, error: existingProfileError } = await supabase
+    .from("profiles")
+    .select("full_name, bio, role_focus, experience_level")
+    .eq("id", user.id)
+    .single();
+
+  if (existingProfileError || !existingProfile) {
+    redirect("/profile?error=save_failed");
+  }
 
   const username = String(formData.get("username") || "").trim();
   const fullName = String(formData.get("fullName") || "").trim();
@@ -67,11 +76,11 @@ export async function updateProfile(formData: FormData): Promise<void> {
     avatar_url?: string | null;
   } = {
     username,
-    full_name: fullName,
+    full_name: fullName || existingProfile.full_name || "",
     phone,
-    bio,
-    role_focus: roleFocus,
-    experience_level: experienceLevel,
+    bio: bio || existingProfile.bio || "",
+    role_focus: roleFocus || existingProfile.role_focus || "",
+    experience_level: experienceLevel || existingProfile.experience_level || "",
   };
 
   if (avatarUrl !== undefined) {
