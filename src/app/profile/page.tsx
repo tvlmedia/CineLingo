@@ -6,6 +6,17 @@ import { Card, Container } from "@/components/ui";
 import { ProfileForm } from "./ProfileForm";
 import { updateProfile } from "./actions";
 
+type ProfileRow = {
+  username: string | null;
+  full_name: string | null;
+  phone: string | null;
+  avatar_url: string | null;
+  instagram_url: string | null;
+  bio: string | null;
+  role_focus: string | null;
+  experience_level: string | null;
+};
+
 function isMissingInstagramColumn(errorMessage: string | undefined): boolean {
   return String(errorMessage || "").toLowerCase().includes("instagram_url");
 }
@@ -23,16 +34,21 @@ export default async function ProfilePage({
     .from("profiles")
     .select("username, full_name, phone, avatar_url, instagram_url, bio, role_focus, experience_level")
     .eq("id", user.id)
-    .single();
+    .single<ProfileRow>();
 
   if (profileError && isMissingInstagramColumn(profileError.message)) {
     const fallback = await supabase
       .from("profiles")
       .select("username, full_name, phone, avatar_url, bio, role_focus, experience_level")
       .eq("id", user.id)
-      .single();
+      .single<Pick<ProfileRow, "username" | "full_name" | "phone" | "avatar_url" | "bio" | "role_focus" | "experience_level">>();
 
-    profile = fallback.data;
+    profile = fallback.data
+      ? {
+          ...fallback.data,
+          instagram_url: "",
+        }
+      : null;
     profileError = fallback.error;
   }
 
@@ -114,7 +130,7 @@ export default async function ProfilePage({
                 phoneCountryCode: phoneFields.countryCode,
                 phoneNationalNumber: phoneFields.nationalNumber,
                 avatarUrl: profile.avatar_url || "",
-                instagramUrl: String((profile as { instagram_url?: string }).instagram_url || ""),
+                instagramUrl: profile.instagram_url || "",
                 bio: profile.bio || "",
                 roleFocus: profile.role_focus || "",
                 experienceLevel: profile.experience_level || "",
