@@ -112,7 +112,7 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
     targetCount: 10,
   });
 
-  if (aiQuestions.length === 10) {
+  if (aiQuestions.length >= 6) {
     const aiRows = aiQuestions.map((question) => ({
       key: question.key,
       category: question.category,
@@ -131,7 +131,7 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
       .insert(aiRows)
       .select("id, key, category, subtopic, difficulty, question_type, role_relevance, prompt, options, explanation");
 
-    if (!insertAIError && insertedAI && insertedAI.length === 10) {
+    if (!insertAIError && insertedAI && insertedAI.length > 0) {
       selected = insertedAI
         .map((row) =>
           toPracticeQuestion({
@@ -151,7 +151,7 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
     }
   }
 
-  if (selected.length !== 10) {
+  if (selected.length < 10) {
     const { data: questionRows, error: questionError } = await supabase
       .from("assessment_questions")
       .select("id, key, category, subtopic, difficulty, question_type, role_relevance, prompt, options, explanation")
@@ -188,8 +188,25 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
       missedQuestionIds,
       10
     );
-    selected = fallback.questions;
-    plan = fallback.plan;
+    if (selected.length === 0) {
+      selected = fallback.questions;
+      plan = fallback.plan;
+    } else {
+      const needed = 10 - selected.length;
+      const fallbackFill = fallback.questions.slice(0, needed);
+      selected = [...selected, ...fallbackFill];
+      source = "daily_ai";
+      plan = {
+        generator: "openai_hybrid",
+        targetCount: 10,
+        aiGeneratedCount: selected.length - fallbackFill.length,
+        fallbackCount: fallbackFill.length,
+        weakPrimary: learningProfile.weakestDisciplines[0] || null,
+        weakSecondary: learningProfile.weakestDisciplines[1] || null,
+        weakSubtopics: learningProfile.weakSubtopics.slice(0, 4),
+        selectedQuestionIds: selected.map((q) => q.id),
+      };
+    }
   } else {
     source = "daily_ai";
     plan = {
