@@ -174,12 +174,12 @@ export function ProfileForm({ action, profile }: ProfileFormProps) {
   }
 
   return (
-    <form action={action} className="space-y-4">
+    <form action={action} className="space-y-6">
       <input type="hidden" name="avatarImageData" value={avatarImageData} />
       <input type="hidden" name="removeAvatar" value={removeAvatar ? "1" : "0"} />
 
-      <div>
-        <label className="mb-2 block text-sm text-muted">Profile photo</label>
+      <section className="rounded-2xl border border-[#2b426a] bg-[#0f1f42] p-4">
+        <p className="mb-3 text-xs uppercase tracking-[0.18em] text-[#9cb6dd]">Profile Photo</p>
         <div className="mb-3 flex items-center gap-4">
           {avatarPreview ? (
             <img
@@ -192,93 +192,100 @@ export function ProfileForm({ action, profile }: ProfileFormProps) {
               No photo
             </div>
           )}
-          <div className="flex-1 space-y-2">
-            <Input
-              type="file"
+            <div className="flex-1 space-y-2">
+              <Input
+                type="file"
               accept="image/*"
               onChange={handleAvatarChange}
               disabled={isProcessingImage}
             />
-            <p className="text-xs text-muted">
-              Select a photo and position it inside the square.
-            </p>
-            <button
-              type="button"
-              onClick={handleRemoveAvatar}
-              className="rounded-xl border border-border px-3 py-2 text-sm text-muted transition hover:bg-white/5"
-            >
-              Remove photo
-            </button>
+              <p className="text-xs text-muted">
+                Select a photo and position it inside the square.
+              </p>
+              <button
+                type="button"
+                onClick={handleRemoveAvatar}
+                className="rounded-xl border border-border px-3 py-2 text-sm text-muted transition hover:bg-white/5"
+              >
+                Remove photo
+              </button>
+            </div>
+          </div>
+      </section>
+
+      <section className="rounded-2xl border border-[#2b426a] bg-[#0f1f42] p-4">
+        <p className="mb-3 text-xs uppercase tracking-[0.18em] text-[#9cb6dd]">Identity</p>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="mb-2 block text-sm text-muted">Username</label>
+            <Input name="username" defaultValue={profile.username} required />
+          </div>
+          <div>
+            <label className="mb-2 block text-sm text-muted">Full name</label>
+            <Input name="fullName" defaultValue={profile.fullName} />
+          </div>
+          <div className="md:col-span-2">
+            <label className="mb-2 block text-sm text-muted">Phone number</label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[220px_1fr]">
+              <select name="phoneCountryCode" defaultValue={profile.phoneCountryCode} required>
+                {PHONE_COUNTRY_CODES.map((entry) => (
+                  <option key={entry.value} value={entry.value}>
+                    {entry.label}
+                  </option>
+                ))}
+              </select>
+              <Input
+                name="phoneNationalNumber"
+                type="tel"
+                inputMode="numeric"
+                autoComplete="tel-national"
+                defaultValue={profile.phoneNationalNumber}
+                placeholder="6 12345678"
+                required
+              />
+            </div>
+          </div>
+          <div className="md:col-span-2">
+            <label className="mb-2 block text-sm text-muted">Instagram</label>
+            <Input
+              name="instagramUrl"
+              type="text"
+              defaultValue={profile.instagramUrl}
+              placeholder="@jouwnaam of https://instagram.com/jouwnaam"
+            />
           </div>
         </div>
-      </div>
+      </section>
 
-      <div>
-        <label className="mb-2 block text-sm text-muted">Username</label>
-        <Input name="username" defaultValue={profile.username} required />
-      </div>
+      <section className="rounded-2xl border border-[#2b426a] bg-[#0f1f42] p-4">
+        <p className="mb-3 text-xs uppercase tracking-[0.18em] text-[#9cb6dd]">Craft Profile</p>
+        <div className="space-y-4">
+          <div>
+            <label className="mb-2 block text-sm text-muted">Bio</label>
+            <TextArea name="bio" rows={5} defaultValue={profile.bio} />
+          </div>
 
-      <div>
-        <label className="mb-2 block text-sm text-muted">Full name</label>
-        <Input name="fullName" defaultValue={profile.fullName} />
-      </div>
+          <div>
+            <label className="mb-2 block text-sm text-muted">Role focus</label>
+            <Input
+              name="roleFocus"
+              defaultValue={profile.roleFocus}
+              placeholder="DOP, gaffer, AC, director..."
+            />
+          </div>
 
-      <div>
-        <label className="mb-2 block text-sm text-muted">Phone number</label>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[220px_1fr]">
-          <select name="phoneCountryCode" defaultValue={profile.phoneCountryCode} required>
-            {PHONE_COUNTRY_CODES.map((entry) => (
-              <option key={entry.value} value={entry.value}>
-                {entry.label}
-              </option>
-            ))}
-          </select>
-          <Input
-            name="phoneNationalNumber"
-            type="tel"
-            inputMode="numeric"
-            autoComplete="tel-national"
-            defaultValue={profile.phoneNationalNumber}
-            placeholder="6 12345678"
-            required
-          />
+          <div>
+            <label className="mb-2 block text-sm text-muted">Experience level</label>
+            <Input
+              name="experienceLevel"
+              defaultValue={profile.experienceLevel}
+              placeholder="Beginner, intermediate, advanced..."
+            />
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div>
-        <label className="mb-2 block text-sm text-muted">Instagram</label>
-        <Input
-          name="instagramUrl"
-          type="text"
-          defaultValue={profile.instagramUrl}
-          placeholder="@jouwnaam of https://instagram.com/jouwnaam"
-        />
-      </div>
-
-      <div>
-        <label className="mb-2 block text-sm text-muted">Bio</label>
-        <TextArea name="bio" rows={5} defaultValue={profile.bio} />
-      </div>
-
-      <div>
-        <label className="mb-2 block text-sm text-muted">Role focus</label>
-        <Input
-          name="roleFocus"
-          defaultValue={profile.roleFocus}
-          placeholder="DOP, gaffer, AC, director..."
-        />
-      </div>
-
-      <div>
-        <label className="mb-2 block text-sm text-muted">Experience level</label>
-        <Input
-          name="experienceLevel"
-          defaultValue={profile.experienceLevel}
-          placeholder="Beginner, intermediate, advanced..."
-        />
-      </div>
-
-      <button className="w-full rounded-2xl bg-accent px-4 py-3 font-semibold">
+      <button className="w-full rounded-2xl bg-accent px-4 py-3 font-semibold text-[#03231d] shadow-[0_12px_45px_rgba(24,211,163,0.32)] transition hover:brightness-110">
         Save profile
       </button>
 
