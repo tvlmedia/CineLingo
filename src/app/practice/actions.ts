@@ -11,6 +11,7 @@ import {
 import { buildAdaptiveDailyLesson } from "@/lib/practice/lesson-generator";
 import { buildLearningProfile, saveLearningProfile, type LearningProfile } from "@/lib/practice/profile";
 import { generateAIDailyQuestions } from "@/lib/practice/ai-generator";
+import { loadBlockedQuestionIdsForPractice } from "@/lib/practice/question-quality";
 import { DAILY_GOAL_XP_DEFAULT } from "@/lib/practice/types";
 
 function isAssessmentCategory(value: string): value is AssessmentCategory {
@@ -102,6 +103,7 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
   const missedQuestionIds = (missedRows || [])
     .map((row) => String(row.question_id || ""))
     .filter((value) => value.length > 0);
+  const blockedQuestionIds = await loadBlockedQuestionIdsForPractice(supabase, user.id);
 
   let selected = [] as NonNullable<ReturnType<typeof toPracticeQuestion>>[];
   let plan: Record<string, unknown> = {};
@@ -113,7 +115,9 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
   });
 
   if (aiQuestions.length >= 6) {
-    const aiRows = aiQuestions.map((question) => ({
+    const aiRows = aiQuestions
+      .filter((question) => !blockedQuestionIds.has(question.id))
+      .map((question) => ({
       key: question.key,
       category: question.category,
       subtopic: question.subtopic,
@@ -176,7 +180,8 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
           explanation: String(row.explanation),
         })
       )
-      .filter((row): row is NonNullable<typeof row> => Boolean(row));
+      .filter((row): row is NonNullable<typeof row> => Boolean(row))
+      .filter((row) => !blockedQuestionIds.has(row.id));
 
     if (questions.length < 10) {
       redirect(`/dashboard?error=practice_questions_unavailable`);
