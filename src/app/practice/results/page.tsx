@@ -48,7 +48,7 @@ export default async function PracticeResultsPage({
 
   const { data: session } = await supabase
     .from("practice_sessions")
-    .select("id, status, total_questions, correct_count, xp_earned, completed_at")
+    .select("id, status, total_questions, correct_count, xp_earned, completed_at, coach_summary, coach_next_focus, strongest_discipline, weakest_discipline")
     .eq("id", sessionId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -125,7 +125,8 @@ export default async function PracticeResultsPage({
   }));
 
   const weak = weakestCategories(perCategory);
-  const strongestToday = strongestCategory(perCategory);
+  const strongestToday = String(session.strongest_discipline || "") || strongestCategory(perCategory);
+  const weakestToday = String(session.weakest_discipline || "") || (weak[0] || "");
   const missed = reviewRows.filter((row) => !row.isCorrect);
 
   const completedDate = session.completed_at ? String(session.completed_at).slice(0, 10) : null;
@@ -169,6 +170,18 @@ export default async function PracticeResultsPage({
             </p>
             {strongestToday ? (
               <p className="mt-2 text-sm text-muted">Strongest area today: {strongestToday}</p>
+            ) : null}
+            {weakestToday ? (
+              <p className="mt-1 text-sm text-muted">Weakest area today: {weakestToday}</p>
+            ) : null}
+            {session.coach_summary ? (
+              <div className="mt-4 rounded-xl border border-border bg-[#1b1c20] px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.16em] text-muted">Coach summary</p>
+                <p className="mt-2 text-sm text-[#d8dbdf]">{String(session.coach_summary)}</p>
+                {session.coach_next_focus ? (
+                  <p className="mt-2 text-sm text-muted">Next focus: {String(session.coach_next_focus)}</p>
+                ) : null}
+              </div>
             ) : null}
 
             <div className="mt-5 flex flex-wrap gap-3">

@@ -7,11 +7,16 @@ import {
   type PracticeQuestion,
   type PracticeXPBreakdown,
 } from "@/lib/practice/types";
+import { inferQuestionMetadata } from "@/lib/practice/metadata";
 
 type QuestionRow = {
   id: string;
   key: string;
   category: string;
+  subtopic?: string;
+  difficulty?: string;
+  question_type?: string;
+  role_relevance?: unknown;
   prompt: string;
   options: unknown;
   explanation: string;
@@ -25,11 +30,30 @@ export function toPracticeQuestion(row: QuestionRow): PracticeQuestion | null {
   if (!isAssessmentCategory(row.category)) return null;
   const options = parseQuestionOptions(row.options);
   if (!options) return null;
+  const inferred = inferQuestionMetadata(row.category, row.prompt);
+
+  const subtopic = typeof row.subtopic === "string" && row.subtopic.length > 0 ? row.subtopic : inferred.subtopic;
+  const difficulty =
+    row.difficulty === "foundation" || row.difficulty === "core" || row.difficulty === "advanced"
+      ? row.difficulty
+      : inferred.difficulty;
+  const questionType =
+    row.question_type === "technical" || row.question_type === "interpretive"
+      ? row.question_type
+      : inferred.questionType;
+
+  const roleRelevance = Array.isArray(row.role_relevance)
+    ? row.role_relevance.filter((entry): entry is string => typeof entry === "string")
+    : inferred.roleRelevance;
 
   return {
     id: row.id,
     key: row.key,
     category: row.category,
+    subtopic,
+    difficulty,
+    questionType,
+    roleRelevance,
     prompt: row.prompt,
     options,
     explanation: row.explanation,

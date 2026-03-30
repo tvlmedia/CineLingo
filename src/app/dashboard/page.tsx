@@ -32,7 +32,7 @@ export default async function DashboardPage() {
   weekStart.setUTCDate(weekStart.getUTCDate() - 6);
   const weekStartIso = weekStart.toISOString().slice(0, 10);
 
-  const [{ data: profile }, { data: latestAssessment }, { data: inProgressSession }, { data: todayProgress }, { data: disciplineRows }, { data: lastPracticeSession }, { data: socialRows }, { data: weeklyRows }, { count: openMistakesCount }] =
+  const [{ data: profile }, { data: latestAssessment }, { data: inProgressSession }, { data: todayProgress }, { data: disciplineRows }, { data: lastPracticeSession }, { data: socialRows }, { data: weeklyRows }, { count: openMistakesCount }, { data: learningProfile }] =
     await Promise.all([
       supabase
         .from("profiles")
@@ -67,7 +67,7 @@ export default async function DashboardPage() {
         .eq("user_id", user.id),
       supabase
         .from("practice_sessions")
-        .select("id, correct_count, total_questions, xp_earned, completed_at")
+        .select("id, correct_count, total_questions, xp_earned, completed_at, coach_summary, coach_next_focus")
         .eq("user_id", user.id)
         .eq("status", "completed")
         .order("completed_at", { ascending: false })
@@ -87,6 +87,11 @@ export default async function DashboardPage() {
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)
         .eq("status", "open"),
+      supabase
+        .from("user_learning_profiles")
+        .select("weak_subtopics, weakest_disciplines, strongest_disciplines")
+        .eq("user_id", user.id)
+        .maybeSingle(),
     ]);
 
   const mappedDiscipline = new Map<AssessmentCategory, DisciplineRow>();
@@ -156,6 +161,9 @@ export default async function DashboardPage() {
   const friendsCount = socialRows?.length || 0;
   const totalDisciplineXp = disciplineList.reduce((sum, item) => sum + item.xp, 0);
   const openMistakes = Number(openMistakesCount || 0);
+  const weakSubtopics = Array.isArray(learningProfile?.weak_subtopics)
+    ? learningProfile.weak_subtopics.filter((entry): entry is string => typeof entry === "string").slice(0, 3)
+    : [];
 
   return (
     <main className="min-h-screen py-8 md:py-10">
@@ -285,13 +293,20 @@ export default async function DashboardPage() {
               </div>
 
               {weakAreas.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {weakAreas.map((item) => (
-                    <span key={item.category} className="rounded-full border border-border bg-[#1f2126] px-3 py-1 text-sm text-muted">
-                      {item.category}
-                    </span>
-                  ))}
-                </div>
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    {weakAreas.map((item) => (
+                      <span key={item.category} className="rounded-full border border-border bg-[#1f2126] px-3 py-1 text-sm text-muted">
+                        {item.category}
+                      </span>
+                    ))}
+                  </div>
+                  {weakSubtopics.length > 0 ? (
+                    <p className="mt-3 text-sm text-muted">
+                      Weak subtopics: {weakSubtopics.join(" · ")}
+                    </p>
+                  ) : null}
+                </>
               ) : (
                 <p className="text-sm text-muted">No weak-area data yet. Complete your first daily practice to unlock targeted training.</p>
               )}
@@ -386,6 +401,15 @@ export default async function DashboardPage() {
               <p className="mt-3 text-3xl font-semibold">{totalDisciplineXp} XP</p>
               <p className="mt-2 text-sm text-muted">Total accumulated craft XP across all six disciplines.</p>
             </section>
+            {lastPracticeSession?.coach_summary ? (
+              <section className="rounded-2xl border border-border bg-[#16171a] p-6">
+                <p className="text-xs uppercase tracking-[0.2em] text-muted">Coach insight</p>
+                <p className="mt-3 text-sm text-[#d8dbdf]">{String(lastPracticeSession.coach_summary)}</p>
+                {lastPracticeSession?.coach_next_focus ? (
+                  <p className="mt-2 text-sm text-muted">Next focus: {String(lastPracticeSession.coach_next_focus)}</p>
+                ) : null}
+              </section>
+            ) : null}
           </aside>
         </section>
       </Container>

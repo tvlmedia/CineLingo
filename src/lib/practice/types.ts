@@ -16,6 +16,10 @@ export type PracticeQuestion = {
   id: string;
   key: string;
   category: AssessmentCategory;
+  subtopic: string;
+  difficulty: "foundation" | "core" | "advanced";
+  questionType: "technical" | "interpretive";
+  roleRelevance: string[];
   prompt: string;
   options: Array<{ id: string; text: string; isCorrect: boolean }>;
   explanation: string;

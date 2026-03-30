@@ -1430,3 +1430,149 @@ on public.user_missed_questions
 for update
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
+
+-- ============================================================================
+-- Adaptive learning profile + question metadata (v1)
+-- ============================================================================
+
+alter table public.assessment_questions
+add column if not exists subtopic text;
+
+alter table public.assessment_questions
+add column if not exists difficulty text;
+
+alter table public.assessment_questions
+add column if not exists question_type text;
+
+alter table public.assessment_questions
+add column if not exists role_relevance text[];
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'assessment_questions_difficulty_valid'
+      and conrelid = 'public.assessment_questions'::regclass
+  ) then
+    alter table public.assessment_questions
+    add constraint assessment_questions_difficulty_valid
+    check (difficulty is null or difficulty in ('foundation', 'core', 'advanced'));
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'assessment_questions_type_valid'
+      and conrelid = 'public.assessment_questions'::regclass
+  ) then
+    alter table public.assessment_questions
+    add constraint assessment_questions_type_valid
+    check (question_type is null or question_type in ('technical', 'interpretive'));
+  end if;
+end $$;
+
+update public.assessment_questions
+set
+  difficulty = coalesce(
+    difficulty,
+    case
+      when lower(prompt) like '%most accurate%' then 'core'
+      when lower(prompt) like '%most likely%' then 'core'
+      when lower(prompt) like '%why might%' then 'advanced'
+      else 'foundation'
+    end
+  ),
+  question_type = coalesce(
+    question_type,
+    case
+      when category in ('Cinematic Reading', 'Visual Language') then 'interpretive'
+      else 'technical'
+    end
+  ),
+  role_relevance = coalesce(role_relevance, array['dop','director','gaffer']),
+  subtopic = coalesce(
+    nullif(subtopic, ''),
+    case
+      when category = 'Technical Fundamentals' then 'Camera Fundamentals'
+      when category = 'Lighting Craft' then 'Lighting Decisions'
+      when category = 'Visual Language' then 'Visual Grammar'
+      when category = 'Set & Production Knowledge' then 'Set Workflow'
+      when category = 'Cinematic Reading' then 'Visual Interpretation'
+      when category = 'Lens & Camera Intuition' then 'Lens Intuition'
+      else 'General'
+    end
+  );
+
+create index if not exists assessment_questions_category_subtopic_idx
+on public.assessment_questions (category, subtopic);
+
+create index if not exists assessment_questions_category_difficulty_idx
+on public.assessment_questions (category, difficulty);
+
+create table if not exists public.user_learning_profiles (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null unique references auth.users(id) on delete cascade,
+  role_focus_snapshot text not null default '',
+  weakest_disciplines text[] not null default '{}',
+  strongest_disciplines text[] not null default '{}',
+  weak_subtopics text[] not null default '{}',
+  total_xp integer not null default 0,
+  weekly_xp integer not null default 0,
+  current_streak integer not null default 0,
+  recent_accuracy numeric not null default 0,
+  updated_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  constraint user_learning_profiles_non_negative check (
+    total_xp >= 0 and weekly_xp >= 0 and current_streak >= 0 and recent_accuracy >= 0
+  )
+);
+
+create index if not exists user_learning_profiles_updated_idx
+on public.user_learning_profiles (updated_at desc);
+
+alter table public.user_learning_profiles enable row level security;
+
+drop policy if exists "Users can view own learning profile" on public.user_learning_profiles;
+drop policy if exists "Users can insert own learning profile" on public.user_learning_profiles;
+drop policy if exists "Users can update own learning profile" on public.user_learning_profiles;
+
+create policy "Users can view own learning profile"
+on public.user_learning_profiles
+for select
+using (auth.uid() = user_id);
+
+create policy "Users can insert own learning profile"
+on public.user_learning_profiles
+for insert
+with check (auth.uid() = user_id);
+
+create policy "Users can update own learning profile"
+on public.user_learning_profiles
+for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+alter table public.practice_sessions
+add column if not exists lesson_date date not null default current_date;
+
+alter table public.practice_sessions
+add column if not exists lesson_plan jsonb;
+
+alter table public.practice_sessions
+add column if not exists generator_version text;
+
+alter table public.practice_sessions
+add column if not exists strongest_discipline text;
+
+alter table public.practice_sessions
+add column if not exists weakest_discipline text;
+
+alter table public.practice_sessions
+add column if not exists coach_summary text;
+
+alter table public.practice_sessions
+add column if not exists coach_next_focus text;
+
+create index if not exists practice_sessions_user_lesson_date_idx
+on public.practice_sessions (user_id, lesson_date desc);

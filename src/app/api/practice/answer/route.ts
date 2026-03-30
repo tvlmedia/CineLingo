@@ -7,7 +7,9 @@ import {
   computeMasteryStatus,
   computePracticeXP,
 } from "@/lib/practice/engine";
+import { buildLearningProfile, saveLearningProfile } from "@/lib/practice/profile";
 import { updateMissedQuestionProgress } from "@/lib/practice/missed";
+import { generateCoachSummary } from "@/lib/practice/coach";
 import { DAILY_GOAL_XP_DEFAULT } from "@/lib/practice/types";
 import { ASSESSMENT_CATEGORIES, type AssessmentCategory } from "@/lib/assessment/types";
 
@@ -112,6 +114,40 @@ async function finalizeSessionAndProgress(sessionId: string, userId: string) {
 
   const xp = computePracticeXP(correctCount, totalQuestions, nextStreak);
 
+  const sortedByRatio = Array.from(sessionCategoryStats.entries())
+    .map(([category, stats]) => ({
+      category,
+      ratio: stats.total > 0 ? stats.correct / stats.total : 0,
+    }))
+    .sort((a, b) => a.ratio - b.ratio);
+
+  const weakestDiscipline = sortedByRatio[0]?.category || null;
+  const strongestDiscipline = sortedByRatio[sortedByRatio.length - 1]?.category || null;
+
+  const [{ data: profileRow }, { data: weakSubtopicRows }] = await Promise.all([
+    supabase.from("profiles").select("role_focus").eq("id", userId).maybeSingle(),
+    supabase
+      .from("user_missed_questions")
+      .select("question:assessment_questions(subtopic)")
+      .eq("user_id", userId)
+      .eq("status", "open")
+      .order("last_missed_at", { ascending: false })
+      .limit(6),
+  ]);
+
+  const weakSubtopics = (weakSubtopicRows || [])
+    .map((row) => String((Array.isArray(row.question) ? row.question[0] : row.question)?.subtopic || ""))
+    .filter((value) => value.length > 0);
+
+  const coach = generateCoachSummary({
+    correctCount,
+    totalQuestions,
+    strongestDiscipline,
+    weakestDiscipline,
+    weakSubtopics,
+    roleFocus: String(profileRow?.role_focus || ""),
+  });
+
   const { error: sessionUpdateError } = await supabase
     .from("practice_sessions")
     .update({
@@ -119,6 +155,10 @@ async function finalizeSessionAndProgress(sessionId: string, userId: string) {
       correct_count: correctCount,
       xp_earned: xp.totalXp,
       completed_at: new Date().toISOString(),
+      strongest_discipline: strongestDiscipline,
+      weakest_discipline: weakestDiscipline,
+      coach_summary: coach.summary,
+      coach_next_focus: coach.nextFocus,
     })
     .eq("id", sessionId)
     .eq("user_id", userId);
@@ -195,11 +235,16 @@ async function finalizeSessionAndProgress(sessionId: string, userId: string) {
     });
   }
 
+  const learningProfile = await buildLearningProfile(supabase, userId);
+  await saveLearningProfile(supabase, learningProfile);
+
   return {
     xp,
     correctCount,
     totalQuestions,
     streak: nextStreak,
+    coachSummary: coach.summary,
+    coachNextFocus: coach.nextFocus,
   };
 }
 
@@ -336,6 +381,8 @@ export async function POST(request: NextRequest) {
         xpEarned: final.xp.totalXp,
         streak: final.streak,
         score: `${final.correctCount}/${final.totalQuestions}`,
+        coachSummary: final.coachSummary,
+        coachNextFocus: final.coachNextFocus,
       },
     });
   } catch {

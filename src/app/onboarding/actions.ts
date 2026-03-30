@@ -17,6 +17,8 @@ import {
   TOTAL_ASSESSMENT_QUESTIONS,
 } from "@/lib/assessment/engine";
 import { ASSESSMENT_QUESTION_BANK } from "@/lib/assessment/question-bank";
+import { inferQuestionMetadata } from "@/lib/practice/metadata";
+import { buildLearningProfile, saveLearningProfile } from "@/lib/practice/profile";
 
 type AssessmentQuestionRow = {
   id: string;
@@ -87,14 +89,21 @@ function toAssessmentQuestion(row: AssessmentQuestionRow): AssessmentQuestion | 
 async function seedQuestionBankIfNeeded(): Promise<string | null> {
   const supabase = await createClient();
 
-  const rows = ASSESSMENT_QUESTION_BANK.map((question) => ({
+  const rows = ASSESSMENT_QUESTION_BANK.map((question) => {
+    const meta = inferQuestionMetadata(question.category, question.prompt);
+    return {
     key: question.key,
     category: question.category,
+    subtopic: meta.subtopic,
+    difficulty: meta.difficulty,
+    question_type: meta.questionType,
+    role_relevance: meta.roleRelevance,
     prompt: question.prompt,
     options: question.options,
     explanation: question.explanation,
     is_active: true,
-  }));
+  };
+  });
 
   // For non-admin users this can fail via RLS; we ignore that and rely on existing DB data.
   const { error } = await supabase.from("assessment_questions").upsert(rows, { onConflict: "key" });
@@ -205,6 +214,9 @@ async function finalizeAttemptAndPersist(attemptId: string, userId: string): Pro
   }));
 
   await supabase.from("user_assessment_scores").insert(scoreRows);
+
+  const learningProfile = await buildLearningProfile(supabase, userId);
+  await saveLearningProfile(supabase, learningProfile);
 
   redirect(`/onboarding/results?attempt=${encodeURIComponent(attemptId)}`);
 }
