@@ -49,7 +49,7 @@ function normalizeGeneratedQuestion(rawText: string) {
   if (!prompt || !explanation || choices.length !== 4) return null;
   if (!Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex > 3) return null;
 
-  const choiceTexts = choices
+  const choiceTexts: string[] = choices
     .map((entry: unknown) => String(entry || "").trim())
     .filter((entry: string) => entry.length > 0);
   if (choiceTexts.length !== 4) return null;
@@ -57,7 +57,7 @@ function normalizeGeneratedQuestion(rawText: string) {
   const unique = new Set(choiceTexts.map((entry: string) => entry.toLowerCase()));
   if (unique.size !== 4) return null;
 
-  const options = choiceTexts.map((text, index) => ({
+  const options = choiceTexts.map((text: string, index: number) => ({
     id: `opt_${index + 1}`,
     text,
     isCorrect: index === correctIndex,
