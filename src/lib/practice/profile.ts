@@ -12,6 +12,14 @@ export type LearningProfile = {
   recentAccuracy: number;
 };
 
+type DisciplineStat = {
+  category: AssessmentCategory;
+  total: number;
+  correct: number;
+  ratio: number;
+  xp: number;
+};
+
 function toCategory(value: string): AssessmentCategory | null {
   return (ASSESSMENT_CATEGORIES as readonly string[]).includes(value)
     ? (value as AssessmentCategory)
@@ -50,7 +58,7 @@ export async function buildLearningProfile(supabase: any, userId: string): Promi
       .limit(24),
   ]);
 
-  const disciplineStats = (disciplineRows || [])
+  const disciplineStats = ((disciplineRows || [])
     .map((row: any) => {
       const category = toCategory(String(row.category || ""));
       if (!category) return null;
@@ -67,9 +75,9 @@ export async function buildLearningProfile(supabase: any, userId: string): Promi
         xp: Number(row.xp_earned || 0),
       };
     })
-    .filter((row: any): row is NonNullable<typeof row> => Boolean(row));
+    .filter((row: any): row is DisciplineStat => Boolean(row))) as DisciplineStat[];
 
-  const fallbackAssessmentStats = (latestAssessmentScores || [])
+  const fallbackAssessmentStats = ((latestAssessmentScores || [])
     .map((row: any) => {
       const category = toCategory(String(row.category || ""));
       if (!category) return null;
@@ -80,9 +88,10 @@ export async function buildLearningProfile(supabase: any, userId: string): Promi
 
       return { category, total, correct, ratio, xp: 0 };
     })
-    .filter((row: any): row is NonNullable<typeof row> => Boolean(row));
+    .filter((row: any): row is DisciplineStat => Boolean(row))) as DisciplineStat[];
 
-  const effectiveStats = disciplineStats.length > 0 ? disciplineStats : fallbackAssessmentStats;
+  const effectiveStats: DisciplineStat[] =
+    disciplineStats.length > 0 ? disciplineStats : fallbackAssessmentStats;
 
   const sortedWeak = [...effectiveStats]
     .filter((row) => row.total > 0)
@@ -99,7 +108,7 @@ export async function buildLearningProfile(supabase: any, userId: string): Promi
     .filter((value: string) => value.length > 0)
     .slice(0, 5);
 
-  const totalXp = effectiveStats.reduce((sum, row) => sum + row.xp, 0);
+  const totalXp = effectiveStats.reduce((sum: number, row) => sum + row.xp, 0);
   const weeklyXp = (dailyRows || []).reduce((sum: number, row: any) => sum + Number(row.xp_earned || 0), 0);
   const currentStreak = Number((dailyRows || [])[0]?.current_streak || 0);
 
