@@ -39,7 +39,7 @@ export default async function DashboardPage() {
   const displayName = profile?.full_name || profile?.username || "Filmmaker";
   const roleFocus = profile?.role_focus || "Not set";
   const experienceLevel = profile?.experience_level || "Not set";
-  const bio = profile?.bio || "Add a short bio so future collaborators know your style.";
+  const bio = profile?.bio || "Add a short bio so future collaborators understand your visual approach.";
   const avatarUrl = profile?.avatar_url || "";
 
   const scoreValue = latestAttempt?.total_questions
@@ -51,52 +51,51 @@ export default async function DashboardPage() {
       : 0;
 
   const friendsCount = socialRows?.length || 0;
-  const readinessPercent = Math.max(18, Math.min(100, assessmentPercent + 10));
 
   const recentActivity = [
     latestAttempt?.status === "completed"
       ? `Completed intake assessment (${scoreValue})`
       : "No completed assessment yet",
-    `Role focus set to: ${roleFocus}`,
+    `Role focus: ${roleFocus}`,
     friendsCount > 0 ? `${friendsCount} social connection(s)` : "No social connections yet",
   ];
 
   return (
-    <main className="min-h-screen py-8 md:py-12">
+    <main className="min-h-screen py-8 md:py-10">
       <Container>
-        <header className="mb-8 rounded-[30px] border border-[#2a3f66]/50 bg-[linear-gradient(150deg,rgba(8,20,46,0.96),rgba(6,17,38,0.92))] px-5 py-4 shadow-[0_30px_80px_rgba(2,6,18,0.55)] backdrop-blur md:px-7">
+        <header className="mb-7 rounded-2xl border border-border bg-[#151619] px-6 py-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-[#92a9d0]">CineLingo Studio</p>
-              <h1 className="text-3xl font-bold md:text-4xl">Dashboard</h1>
+              <p className="text-xs uppercase tracking-[0.2em] text-muted">CineLingo</p>
+              <h1 className="mt-1 text-3xl font-semibold md:text-4xl">Studio Dashboard</h1>
             </div>
             <nav className="flex flex-wrap gap-2">
               <Link
                 href="/dashboard"
-                className="rounded-xl border border-accent bg-accent px-3 py-2 text-sm font-semibold text-[#04231d]"
+                className="rounded-xl border border-border bg-[#202228] px-3 py-2 text-sm font-semibold"
               >
                 Dashboard
               </Link>
               <Link
                 href="/onboarding"
-                className="rounded-xl border border-border bg-white/5 px-3 py-2 text-sm font-semibold transition hover:bg-white/10"
+                className="rounded-xl border border-border bg-[#17181c] px-3 py-2 text-sm font-semibold transition hover:bg-[#212329]"
               >
-                Learn
+                Learning
               </Link>
               <Link
                 href="/social"
-                className="rounded-xl border border-border bg-white/5 px-3 py-2 text-sm font-semibold transition hover:bg-white/10"
+                className="rounded-xl border border-border bg-[#17181c] px-3 py-2 text-sm font-semibold transition hover:bg-[#212329]"
               >
                 Social
               </Link>
               <Link
                 href="/profile"
-                className="rounded-xl border border-border bg-white/5 px-3 py-2 text-sm font-semibold transition hover:bg-white/10"
+                className="rounded-xl border border-border bg-[#17181c] px-3 py-2 text-sm font-semibold transition hover:bg-[#212329]"
               >
                 Profile
               </Link>
               <form action="/logout" method="post">
-                <button className="rounded-xl border border-border bg-white/5 px-3 py-2 text-sm font-semibold transition hover:bg-white/10">
+                <button className="rounded-xl border border-border bg-[#17181c] px-3 py-2 text-sm font-semibold transition hover:bg-[#212329]">
                   Log out
                 </button>
               </form>
@@ -104,162 +103,138 @@ export default async function DashboardPage() {
           </div>
         </header>
 
-        <section className="mb-6 rounded-[32px] border border-[#28406a]/45 bg-[linear-gradient(160deg,rgba(8,19,42,0.96),rgba(8,18,36,0.9))] p-6 shadow-[0_35px_90px_rgba(1,6,18,0.62)] md:p-8">
-          <p className="text-xs uppercase tracking-[0.24em] text-[#8ca6d2]">Cinematography Learning Platform</p>
-          <h2 className="mt-3 text-4xl font-bold leading-tight md:text-5xl">Welcome back, {displayName}</h2>
-          <p className="mt-3 max-w-3xl text-[15px] text-[#b3c5e5]">
-            Sharpen your technical precision and visual instincts with structured practice.
-            CineLingo tracks growth across your full cinematography craft.
+        <section className="mb-7 rounded-2xl border border-border bg-[#16171a] p-6 md:p-8">
+          <p className="text-xs uppercase tracking-[0.2em] text-muted">Learning Hub</p>
+          <h2 className="mt-3 max-w-4xl text-4xl font-semibold leading-tight md:text-5xl">Welcome back, {displayName}</h2>
+          <p className="mt-3 max-w-3xl text-base text-muted">
+            Build technical confidence, visual judgment, and set-ready decision speed with structured cinematography training.
           </p>
 
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
               href="/onboarding"
-              className="rounded-2xl bg-accent px-5 py-3 text-sm font-semibold text-[#03231d] shadow-[0_10px_40px_rgba(24,211,163,0.35)] transition hover:brightness-110"
+              className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-[#13100a]"
             >
-              Continue Learning
+              Continue learning
             </Link>
             <form action={startAssessment}>
               <input type="hidden" name="forceNew" value="1" />
-              <button className="rounded-2xl border border-[#35507d] bg-[#0d1d3d] px-5 py-3 text-sm font-semibold transition hover:bg-[#11264d]">
-                Retake Assessment
+              <button className="rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]">
+                Retake assessment
               </button>
             </form>
           </div>
         </section>
 
-        <section className="grid gap-6 xl:grid-cols-[1.35fr_0.8fr]">
+        <section className="grid gap-6 xl:grid-cols-[1.5fr_0.9fr]">
           <div className="space-y-6">
-            <div className="rounded-[28px] border border-[#294067]/45 bg-[linear-gradient(160deg,rgba(8,19,43,0.94),rgba(7,16,35,0.92))] p-6 shadow-[0_24px_70px_rgba(1,7,18,0.56)]">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-[#8fa9d2]">Learning Path</p>
-                  <h3 className="mt-2 text-2xl font-semibold">Progress Overview</h3>
-                </div>
-                <span className="rounded-full border border-[#39527d] px-3 py-1 text-xs font-semibold text-[#d4e5ff]">
+            <section className="rounded-2xl border border-border bg-[#16171a] p-6">
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-2xl font-semibold">Progress</h3>
+                <span className="rounded-full border border-border bg-[#1f2126] px-3 py-1 text-xs text-muted">
                   {assessmentPercent}% baseline
                 </span>
               </div>
 
-              <div className="mt-5 space-y-4">
-                <div>
-                  <div className="mb-2 flex items-center justify-between text-xs text-[#a9bfdf]">
-                    <span>Assessment score</span>
-                    <span>{scoreValue}</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-white/10">
-                    <div
-                      className="h-full rounded-full bg-accent"
-                      style={{ width: `${Math.max(6, assessmentPercent)}%` }}
-                    />
-                  </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-border bg-[#1c1e23] px-4 py-3">
+                  <p className="text-xs text-muted">Assessment</p>
+                  <p className="mt-1 text-lg font-semibold">{scoreValue}</p>
                 </div>
-
-                <div>
-                  <div className="mb-2 flex items-center justify-between text-xs text-[#a9bfdf]">
-                    <span>Discipline readiness</span>
-                    <span>{readinessPercent}%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-white/10">
-                    <div
-                      className="h-full rounded-full bg-[#7ca5ff]"
-                      style={{ width: `${Math.max(8, readinessPercent)}%` }}
-                    />
-                  </div>
+                <div className="rounded-xl border border-border bg-[#1c1e23] px-4 py-3">
+                  <p className="text-xs text-muted">Experience</p>
+                  <p className="mt-1 text-lg font-semibold">{experienceLevel}</p>
+                </div>
+                <div className="rounded-xl border border-border bg-[#1c1e23] px-4 py-3">
+                  <p className="text-xs text-muted">Network</p>
+                  <p className="mt-1 text-lg font-semibold">{friendsCount} peers</p>
                 </div>
               </div>
+            </section>
 
-              <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-[#2a426a] bg-[#101f40] px-4 py-3">
-                  <p className="text-xs text-[#9db5dc]">Current level</p>
-                  <p className="mt-1 text-base font-semibold">{experienceLevel}</p>
-                </div>
-                <div className="rounded-2xl border border-[#2a426a] bg-[#101f40] px-4 py-3">
-                  <p className="text-xs text-[#9db5dc]">Role focus</p>
-                  <p className="mt-1 truncate text-base font-semibold">{roleFocus}</p>
-                </div>
-                <div className="rounded-2xl border border-[#2a426a] bg-[#101f40] px-4 py-3">
-                  <p className="text-xs text-[#9db5dc]">Crew network</p>
-                  <p className="mt-1 text-base font-semibold">{friendsCount} peers</p>
-                </div>
+            <section className="rounded-2xl border border-border bg-[#16171a] p-6">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-2xl font-semibold">Six Disciplines</h3>
+                <span className="text-xs uppercase tracking-[0.16em] text-muted">Core framework</span>
               </div>
-            </div>
 
-            <div className="rounded-[28px] border border-[#294067]/45 bg-[linear-gradient(160deg,rgba(7,17,39,0.94),rgba(8,18,37,0.92))] p-6 shadow-[0_24px_70px_rgba(1,7,18,0.56)]">
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-2xl font-semibold">Six Core Disciplines</h3>
-                <span className="rounded-full border border-[#3a5583] px-3 py-1 text-xs text-[#c8d9f4]">
-                  Central Tracks
-                </span>
-              </div>
               <div className="grid gap-3 md:grid-cols-2">
                 {DISCIPLINES.map((discipline) => (
                   <div
                     key={discipline}
-                    className="rounded-2xl border border-[#2a436d] bg-[#0f1f42] px-4 py-3 transition hover:border-[#4e73ab] hover:bg-[#132955]"
+                    className="rounded-xl border border-border bg-[#1b1c20] px-4 py-4 transition hover:bg-[#22242a]"
                   >
-                    <p className="font-semibold">{discipline}</p>
-                    <p className="mt-1 text-xs text-[#9fb5da]">Lessons, drills, and scenario training</p>
+                    <p className="text-base font-semibold">{discipline}</p>
+                    <p className="mt-1 text-sm text-muted">Lessons, case prompts, and craft drills</p>
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
 
-            <div className="rounded-[28px] border border-[#294067]/45 bg-[linear-gradient(160deg,rgba(7,17,39,0.94),rgba(8,18,37,0.92))] p-6 shadow-[0_24px_70px_rgba(1,7,18,0.56)]">
-              <h3 className="text-2xl font-semibold">Recent Activity</h3>
-              <div className="mt-4 space-y-3">
+            <section className="rounded-2xl border border-border bg-[#16171a] p-6">
+              <h3 className="text-2xl font-semibold">Recent activity</h3>
+              <div className="mt-4 divide-y divide-white/10 rounded-xl border border-border bg-[#1b1c20]">
                 {recentActivity.map((item, index) => (
-                  <div key={`${item}-${index}`} className="rounded-2xl border border-[#2b436d] bg-[#0f1f42] px-4 py-3">
-                    <p className="text-sm text-[#d5e4ff]">{item}</p>
+                  <div key={`${item}-${index}`} className="px-4 py-3">
+                    <p className="text-sm text-[#dcdee5]">{item}</p>
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
           </div>
 
           <aside className="space-y-6">
-            <div className="rounded-[28px] border border-[#294067]/45 bg-[linear-gradient(160deg,rgba(7,17,39,0.94),rgba(8,18,37,0.92))] p-6 shadow-[0_24px_70px_rgba(1,7,18,0.56)]">
-              <p className="text-xs uppercase tracking-[0.2em] text-[#8fa9d2]">Profile Snapshot</p>
+            <section className="rounded-2xl border border-border bg-[#16171a] p-6">
+              <p className="text-xs uppercase tracking-[0.2em] text-muted">Profile snapshot</p>
               <div className="mt-4 flex items-center gap-3">
                 {avatarUrl ? (
-                  <img src={avatarUrl} alt="Profile" className="h-14 w-14 rounded-2xl border border-[#34527f] object-cover" />
+                  <img src={avatarUrl} alt="Profile" className="h-14 w-14 rounded-xl border border-border object-cover" />
                 ) : (
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[#34527f] bg-[#0f1f42] text-lg font-semibold">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-border bg-[#1d1f24] text-lg font-semibold">
                     {displayName.slice(0, 1).toUpperCase()}
                   </div>
                 )}
                 <div>
                   <p className="font-semibold">{displayName}</p>
-                  <p className="text-xs text-[#9fb5da]">@{profile?.username || "user"}</p>
+                  <p className="text-sm text-muted">@{profile?.username || "user"}</p>
                 </div>
               </div>
-              <p className="mt-4 text-sm text-[#b3c5e5]">{bio}</p>
-              <Link href="/profile" className="mt-5 inline-flex rounded-xl border border-[#385683] px-3 py-2 text-sm font-semibold transition hover:bg-[#12264d]">
+
+              <p className="mt-4 text-sm text-muted">{bio}</p>
+              <p className="mt-3 text-sm text-[#d7d9e0]">Role focus: {roleFocus}</p>
+
+              <Link
+                href="/profile"
+                className="mt-5 inline-flex rounded-xl border border-border bg-[#1a1b1f] px-3 py-2 text-sm font-semibold transition hover:bg-[#22252b]"
+              >
                 Open profile studio
               </Link>
-            </div>
+            </section>
 
-            <div className="rounded-[28px] border border-[#294067]/45 bg-[linear-gradient(160deg,rgba(7,17,39,0.94),rgba(8,18,37,0.92))] p-6 shadow-[0_24px_70px_rgba(1,7,18,0.56)]">
-              <p className="text-xs uppercase tracking-[0.2em] text-[#8fa9d2]">Assessment</p>
-              <p className="mt-3 text-3xl font-bold">{scoreValue}</p>
-              <p className="mt-1 text-sm text-[#9fb5da]">
+            <section className="rounded-2xl border border-border bg-[#16171a] p-6">
+              <p className="text-xs uppercase tracking-[0.2em] text-muted">Assessment</p>
+              <p className="mt-3 text-3xl font-semibold">{scoreValue}</p>
+              <p className="mt-2 text-sm text-muted">
                 {latestAttempt?.status === "completed" ? "Latest baseline score" : "No completed baseline yet"}
               </p>
               {latestAttempt?.completed_at ? (
-                <p className="mt-2 text-xs text-[#7f9cc7]">
+                <p className="mt-2 text-xs text-muted">
                   Updated {new Date(String(latestAttempt.completed_at)).toLocaleDateString()}
                 </p>
               ) : null}
-            </div>
+            </section>
 
-            <div className="rounded-[28px] border border-[#294067]/45 bg-[linear-gradient(160deg,rgba(7,17,39,0.94),rgba(8,18,37,0.92))] p-6 shadow-[0_24px_70px_rgba(1,7,18,0.56)]">
-              <p className="text-xs uppercase tracking-[0.2em] text-[#8fa9d2]">Social Snapshot</p>
-              <p className="mt-3 text-3xl font-bold">{friendsCount}</p>
-              <p className="mt-1 text-sm text-[#9fb5da]">Active connections</p>
-              <Link href="/social" className="mt-4 inline-flex rounded-xl border border-[#385683] px-3 py-2 text-sm font-semibold transition hover:bg-[#12264d]">
-                Open social
+            <section className="rounded-2xl border border-border bg-[#16171a] p-6">
+              <p className="text-xs uppercase tracking-[0.2em] text-muted">Social</p>
+              <p className="mt-3 text-3xl font-semibold">{friendsCount}</p>
+              <p className="mt-2 text-sm text-muted">Active connections</p>
+              <Link
+                href="/social"
+                className="mt-4 inline-flex rounded-xl border border-border bg-[#1a1b1f] px-3 py-2 text-sm font-semibold transition hover:bg-[#22252b]"
+              >
+                Open network
               </Link>
-            </div>
+            </section>
           </aside>
         </section>
       </Container>

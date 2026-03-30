@@ -70,16 +70,16 @@ export default async function SocialProfilePage({
   return (
     <main className="min-h-screen py-10 md:py-12">
       <div className="mx-auto max-w-3xl px-5 md:px-8">
-        <section className="rounded-[30px] border border-[#294067]/45 bg-[linear-gradient(160deg,rgba(8,19,43,0.94),rgba(7,16,35,0.92))] p-6 shadow-[0_26px_80px_rgba(1,7,18,0.6)] md:p-7">
+        <section className="rounded-2xl border border-border bg-[#16171a] p-6 md:p-7">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-[#8fa9d2]">CineLingo Profile</p>
-              <h1 className="mt-1 text-3xl font-bold">{displayName}</h1>
-              <p className="text-sm text-[#9fb5da]">@{profile.username || "unknown"}</p>
+              <p className="text-xs uppercase tracking-[0.22em] text-muted">CineLingo Profile</p>
+              <h1 className="mt-1 text-3xl font-semibold">{displayName}</h1>
+              <p className="text-sm text-muted">@{profile.username || "unknown"}</p>
             </div>
             <Link
               href="/social"
-              className="rounded-xl border border-border bg-white/5 px-3 py-2 text-sm font-semibold transition hover:bg-white/10"
+              className="rounded-xl border border-border bg-[#1a1b1f] px-3 py-2 text-sm font-semibold transition hover:bg-[#22252b]"
             >
               Back to social
             </Link>
@@ -90,29 +90,29 @@ export default async function SocialProfilePage({
               <img
                 src={profile.avatar_url}
                 alt={displayName}
-                className="h-20 w-20 rounded-2xl border border-[#35527f] object-cover"
+                className="h-20 w-20 rounded-2xl border border-border object-cover"
               />
             ) : (
-              <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-[#35527f] bg-[#0d1e40] text-2xl font-semibold">
+              <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-border bg-[#202228] text-2xl font-semibold">
                 {displayName.slice(0, 1).toUpperCase()}
               </div>
             )}
 
             <div className="grid gap-2 sm:grid-cols-2">
-              <div className="rounded-xl border border-[#2a436d] bg-[#102346] px-3 py-2">
-                <p className="text-xs text-[#9fb5da]">Role focus</p>
+              <div className="rounded-xl border border-border bg-[#1b1c20] px-3 py-2">
+                <p className="text-xs text-muted">Role focus</p>
                 <p className="font-semibold">{profile.role_focus || "Not specified"}</p>
               </div>
-              <div className="rounded-xl border border-[#2a436d] bg-[#102346] px-3 py-2">
-                <p className="text-xs text-[#9fb5da]">Experience level</p>
+              <div className="rounded-xl border border-border bg-[#1b1c20] px-3 py-2">
+                <p className="text-xs text-muted">Experience level</p>
                 <p className="font-semibold">{profile.experience_level || "Not specified"}</p>
               </div>
             </div>
           </div>
 
-          <div className="mt-5 rounded-xl border border-[#2a436d] bg-[#102346] px-4 py-3">
-            <p className="text-xs text-[#9fb5da]">Bio</p>
-            <p className="mt-1 text-sm text-[#d4e4ff]">{profile.bio || "No bio yet."}</p>
+          <div className="mt-5 rounded-xl border border-border bg-[#1b1c20] px-4 py-3">
+            <p className="text-xs text-muted">Bio</p>
+            <p className="mt-1 text-sm text-[#dde0e8]">{profile.bio || "No bio yet."}</p>
           </div>
 
           {instagramUrl ? (
@@ -120,7 +120,7 @@ export default async function SocialProfilePage({
               href={instagramUrl}
               target="_blank"
               rel="noreferrer"
-              className="mt-4 inline-flex rounded-xl border border-[#35527f] px-3 py-2 text-sm font-semibold transition hover:bg-[#12264d]"
+              className="mt-4 inline-flex rounded-xl border border-border px-3 py-2 text-sm font-semibold transition hover:bg-[#262a33]"
             >
               Open Instagram
             </a>

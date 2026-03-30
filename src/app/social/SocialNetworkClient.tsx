@@ -186,30 +186,30 @@ export function SocialNetworkClient({
   }, [selectedFriend]);
 
   return (
-    <section className="rounded-[28px] border border-[#294067]/45 bg-[linear-gradient(160deg,rgba(8,19,43,0.94),rgba(7,16,35,0.92))] p-5 shadow-[0_24px_70px_rgba(1,7,18,0.56)] md:p-6">
+    <section className="rounded-2xl border border-border bg-[#16171a] p-5 md:p-6">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.22em] text-[#8fa9d2]">Direct chat</p>
+          <p className="text-xs uppercase tracking-[0.22em] text-muted">Direct chat</p>
           <h2 className="mt-1 text-2xl font-semibold">Conversation</h2>
-          <p className="mt-1 text-sm text-[#aac0e2]">{chatSubtitle}</p>
+          <p className="mt-1 text-sm text-muted">{chatSubtitle}</p>
         </div>
         {selectedFriend ? (
-          <div className="rounded-xl border border-[#35527f] bg-[#0f1f42] px-3 py-2 text-right">
-            <p className="text-xs text-[#9fb5da]">Current level</p>
+          <div className="rounded-xl border border-border bg-[#1b1c20] px-3 py-2 text-right">
+            <p className="text-xs text-muted">Current level</p>
             <p className="text-sm font-semibold">{selectedFriend.levelLabel}</p>
           </div>
         ) : null}
       </div>
 
       {!selectedFriend ? (
-        <div className="flex h-[560px] items-center justify-center rounded-2xl border border-[#2a436d] bg-[#0f1f42] px-6 text-center text-sm text-[#9fb5da]">
+        <div className="flex h-[560px] items-center justify-center rounded-2xl border border-border bg-[#1b1c20] px-6 text-center text-sm text-muted">
           Kies links een connectie om direct te starten.
         </div>
       ) : (
         <>
-          <div className="mb-4 h-[460px] space-y-2 overflow-y-auto rounded-2xl border border-[#2a436d] bg-[#0f1f42] p-3">
+          <div className="mb-4 h-[460px] space-y-2 overflow-y-auto rounded-2xl border border-border bg-[#1b1c20] p-3">
             {chatMessages.length === 0 ? (
-              <p className="text-sm text-[#9fb5da]">Nog geen berichten in deze conversatie.</p>
+              <p className="text-sm text-muted">Nog geen berichten in deze conversatie.</p>
             ) : (
               chatMessages.map((messageItem) => {
                 const mine = messageItem.sender_id === currentUserId;
@@ -223,13 +223,13 @@ export function SocialNetworkClient({
                     <div
                       className={`rounded-xl px-3 py-2 text-sm ${
                         mine
-                          ? "bg-accent text-[#04231d]"
-                          : "border border-[#304b76] bg-[#102346] text-foreground"
+                          ? "bg-accent text-[#13100a]"
+                          : "border border-border bg-[#1b1c20] text-foreground"
                       }`}
                     >
                       {messageItem.body}
                     </div>
-                    <p className="mt-1 text-[11px] text-[#8aa4cf]">
+                    <p className="mt-1 text-[11px] text-muted">
                       {formatClockTime(messageItem.created_at)} {readLabel}
                     </p>
                   </div>
@@ -255,7 +255,7 @@ export function SocialNetworkClient({
             <button
               type="submit"
               disabled={isSending}
-              className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-[#04231d] disabled:opacity-60"
+              className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-[#13100a] disabled:opacity-60"
             >
               {isSending ? "Sending..." : "Send"}
             </button>

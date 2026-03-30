@@ -178,8 +178,8 @@ export function ProfileForm({ action, profile }: ProfileFormProps) {
       <input type="hidden" name="avatarImageData" value={avatarImageData} />
       <input type="hidden" name="removeAvatar" value={removeAvatar ? "1" : "0"} />
 
-      <section className="rounded-2xl border border-[#2b426a] bg-[#0f1f42] p-4">
-        <p className="mb-3 text-xs uppercase tracking-[0.18em] text-[#9cb6dd]">Profile Photo</p>
+      <section className="rounded-xl border border-border bg-[#1b1c20] p-4">
+        <p className="mb-3 text-xs uppercase tracking-[0.18em] text-muted">Profile photo</p>
         <div className="mb-3 flex items-center gap-4">
           {avatarPreview ? (
             <img
@@ -188,33 +188,33 @@ export function ProfileForm({ action, profile }: ProfileFormProps) {
               className="h-24 w-24 rounded-2xl border border-border object-cover"
             />
           ) : (
-            <div className="flex h-24 w-24 items-center justify-center rounded-2xl border border-border bg-card text-xs text-muted">
+            <div className="flex h-24 w-24 items-center justify-center rounded-xl border border-border bg-[#202228] text-xs text-muted">
               No photo
             </div>
           )}
-            <div className="flex-1 space-y-2">
-              <Input
-                type="file"
+          <div className="flex-1 space-y-2">
+            <Input
+              type="file"
               accept="image/*"
               onChange={handleAvatarChange}
               disabled={isProcessingImage}
             />
-              <p className="text-xs text-muted">
-                Select a photo and position it inside the square.
-              </p>
-              <button
-                type="button"
-                onClick={handleRemoveAvatar}
-                className="rounded-xl border border-border px-3 py-2 text-sm text-muted transition hover:bg-white/5"
-              >
-                Remove photo
-              </button>
-            </div>
+            <p className="text-xs text-muted">
+              Select a photo and position it inside the square.
+            </p>
+            <button
+              type="button"
+              onClick={handleRemoveAvatar}
+              className="rounded-xl border border-border bg-[#202228] px-3 py-2 text-sm text-muted transition hover:bg-[#282b32]"
+            >
+              Remove photo
+            </button>
+          </div>
           </div>
       </section>
 
-      <section className="rounded-2xl border border-[#2b426a] bg-[#0f1f42] p-4">
-        <p className="mb-3 text-xs uppercase tracking-[0.18em] text-[#9cb6dd]">Identity</p>
+      <section className="rounded-xl border border-border bg-[#1b1c20] p-4">
+        <p className="mb-3 text-xs uppercase tracking-[0.18em] text-muted">Identity</p>
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <label className="mb-2 block text-sm text-muted">Username</label>
@@ -257,8 +257,8 @@ export function ProfileForm({ action, profile }: ProfileFormProps) {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-[#2b426a] bg-[#0f1f42] p-4">
-        <p className="mb-3 text-xs uppercase tracking-[0.18em] text-[#9cb6dd]">Craft Profile</p>
+      <section className="rounded-xl border border-border bg-[#1b1c20] p-4">
+        <p className="mb-3 text-xs uppercase tracking-[0.18em] text-muted">Craft profile</p>
         <div className="space-y-4">
           <div>
             <label className="mb-2 block text-sm text-muted">Bio</label>
@@ -285,21 +285,21 @@ export function ProfileForm({ action, profile }: ProfileFormProps) {
         </div>
       </section>
 
-      <button className="w-full rounded-2xl bg-accent px-4 py-3 font-semibold text-[#03231d] shadow-[0_12px_45px_rgba(24,211,163,0.32)] transition hover:brightness-110">
+      <button className="w-full rounded-xl bg-accent px-4 py-3 font-semibold text-[#13100a] transition hover:brightness-110">
         Save profile
       </button>
 
       {cropImage ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-          <div className="w-full max-w-lg rounded-2xl border border-border bg-[#0b1329] p-5">
-            <h2 className="mb-3 text-xl font-semibold">Crop Profile Photo</h2>
+          <div className="w-full max-w-lg rounded-xl border border-border bg-[#17181c] p-5">
+            <h2 className="mb-3 text-xl font-semibold">Crop profile photo</h2>
             <p className="mb-4 text-sm text-muted">
               Slide your photo inside the square. Output will be 1080x1080.
             </p>
 
             <div className="mb-4 flex justify-center">
               <div
-                className="relative overflow-hidden rounded-2xl border border-border bg-black"
+                className="relative overflow-hidden rounded-xl border border-border bg-black"
                 style={{ width: CROP_VIEWPORT_SIZE, height: CROP_VIEWPORT_SIZE }}
               >
                 {(() => {
@@ -368,7 +368,7 @@ export function ProfileForm({ action, profile }: ProfileFormProps) {
               <button
                 type="button"
                 onClick={cancelCrop}
-                className="rounded-xl border border-border px-3 py-2 text-sm text-muted transition hover:bg-white/5"
+                className="rounded-xl border border-border bg-[#202228] px-3 py-2 text-sm text-muted transition hover:bg-[#282b32]"
               >
                 Cancel
               </button>
@@ -376,7 +376,7 @@ export function ProfileForm({ action, profile }: ProfileFormProps) {
                 type="button"
                 onClick={applyCrop}
                 disabled={isProcessingImage}
-                className="rounded-xl bg-accent px-3 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                className="rounded-xl bg-accent px-3 py-2 text-sm font-semibold text-[#13100a] transition hover:opacity-90 disabled:opacity-50"
               >
                 Use photo
               </button>

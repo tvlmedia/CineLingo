@@ -4,14 +4,17 @@
 
 :root {
   color-scheme: dark;
-  --bg-0: #050b1d;
-  --bg-1: #091632;
-  --bg-2: #0c2242;
-  --text-0: #f8fafc;
-  --text-1: #c8d3ea;
-  --border-0: rgba(124, 146, 186, 0.22);
-  --accent-0: #18d3a3;
-  --accent-1: #7ae582;
+  --bg-0: #0a0a0b;
+  --bg-1: #111214;
+  --bg-2: #17181b;
+  --surface-0: #151619;
+  --surface-1: #1b1c20;
+  --text-0: #f4f4f6;
+  --text-1: #b8bbc4;
+  --text-2: #8c909a;
+  --border-0: rgba(255, 255, 255, 0.12);
+  --accent-0: #c8a66a;
+  --accent-1: #b89251;
 }
 
 html,
@@ -22,10 +25,10 @@ body {
   color: var(--text-0);
   font-family: var(--font-space-grotesk), "Segoe UI", sans-serif;
   background:
-    radial-gradient(1200px 700px at 90% -10%, rgba(24, 211, 163, 0.16), transparent 55%),
-    radial-gradient(900px 500px at -10% 15%, rgba(122, 229, 130, 0.12), transparent 55%),
-    linear-gradient(170deg, var(--bg-0), var(--bg-1) 42%, var(--bg-2));
-  letter-spacing: 0.01em;
+    radial-gradient(1200px 700px at 80% -10%, rgba(255, 255, 255, 0.04), transparent 60%),
+    linear-gradient(180deg, var(--bg-0), var(--bg-1) 46%, var(--bg-2));
+  letter-spacing: 0.005em;
+  line-height: 1.45;
 }
 
 * {
@@ -41,11 +44,11 @@ input,
 textarea,
 select {
   width: 100%;
-  background: rgba(7, 17, 39, 0.78);
+  background: rgba(24, 25, 29, 0.82);
   color: var(--text-0);
   border: 1px solid var(--border-0);
-  border-radius: 14px;
-  padding: 12px 14px;
+  border-radius: 12px;
+  padding: 12px 13px;
   transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
 }
 
@@ -53,9 +56,9 @@ input:focus,
 textarea:focus,
 select:focus {
   outline: none;
-  border-color: rgba(24, 211, 163, 0.7);
-  box-shadow: 0 0 0 4px rgba(24, 211, 163, 0.15);
-  background: rgba(8, 21, 45, 0.9);
+  border-color: rgba(200, 166, 106, 0.65);
+  box-shadow: 0 0 0 3px rgba(200, 166, 106, 0.14);
+  background: rgba(28, 29, 34, 0.95);
 }
 
 button {
@@ -67,7 +70,7 @@ input[type="range"] {
   height: 6px;
   border: 0;
   border-radius: 999px;
-  background: rgba(122, 146, 186, 0.3);
+  background: rgba(255, 255, 255, 0.18);
 }
 
 input[type="range"]::-webkit-slider-thumb {
@@ -76,6 +79,10 @@ input[type="range"]::-webkit-slider-thumb {
   width: 14px;
   height: 14px;
   border-radius: 999px;
-  border: 2px solid #041125;
+  border: 2px solid #0b0b0d;
   background: var(--accent-0);
+}
+
+::placeholder {
+  color: var(--text-2);
 }

@@ -454,19 +454,19 @@ export default async function SocialPage({
   return (
     <main className="min-h-screen py-8 md:py-12">
       <div className="mx-auto max-w-[1480px] px-5 md:px-8">
-        <header className="mb-8 rounded-[30px] border border-[#2a3f66]/50 bg-[linear-gradient(150deg,rgba(8,20,46,0.96),rgba(6,17,38,0.92))] px-5 py-4 shadow-[0_30px_80px_rgba(2,6,18,0.55)] md:px-7">
+        <header className="mb-8 rounded-2xl border border-border bg-[#151619] px-5 py-4 md:px-7">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-[#92a9d0]">CineLingo Network</p>
-              <h1 className="text-3xl font-bold md:text-4xl">Filmmaker Social Layer</h1>
-              <p className="mt-2 text-sm text-[#afc4e6]">
+              <p className="text-xs uppercase tracking-[0.24em] text-muted">CineLingo Network</p>
+              <h1 className="text-3xl font-semibold md:text-4xl">Filmmaker Social Layer</h1>
+              <p className="mt-2 text-sm text-muted">
                 Connect with cinematographers by craft profile, strengths, and collaboration relevance.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Link
                 href="/dashboard"
-                className="rounded-xl border border-border bg-white/5 px-3 py-2 text-sm font-semibold transition hover:bg-white/10"
+                className="rounded-xl border border-border bg-[#1a1b1f] px-3 py-2 text-sm font-semibold transition hover:bg-[#22252b]"
               >
                 Back to dashboard
               </Link>
@@ -488,9 +488,9 @@ export default async function SocialPage({
 
         <section className="grid gap-6 xl:grid-cols-[380px_1fr_360px]">
           <aside className="space-y-5">
-            <section className="rounded-[28px] border border-[#294067]/45 bg-[linear-gradient(160deg,rgba(8,19,43,0.94),rgba(7,16,35,0.92))] p-5 shadow-[0_24px_70px_rgba(1,7,18,0.56)]">
+            <section className="rounded-2xl border border-border bg-[#16171a] p-5">
               <h2 className="text-xl font-semibold">Add filmmaker</h2>
-              <p className="mt-1 text-sm text-[#a9bfdf]">
+              <p className="mt-1 text-sm text-muted">
                 Search by username, full name, e-mail or phone number.
               </p>
               <form action={sendFriendRequest} className="mt-4 space-y-3">
@@ -499,53 +499,53 @@ export default async function SocialPage({
                   placeholder="@username, full name, email or +316..."
                   required
                 />
-                <button className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-[#04231d]">
+                <button className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-[#13100a]">
                   Send invite
                 </button>
               </form>
             </section>
 
-            <section className="rounded-[28px] border border-[#294067]/45 bg-[linear-gradient(160deg,rgba(8,19,43,0.94),rgba(7,16,35,0.92))] p-5 shadow-[0_24px_70px_rgba(1,7,18,0.56)]">
+            <section className="rounded-2xl border border-border bg-[#16171a] p-5">
               <h3 className="text-lg font-semibold">Incoming invites</h3>
               <div className="mt-3 space-y-3">
                 {incomingCards.length === 0 ? (
-                  <p className="text-sm text-[#9fb5da]">No incoming invites.</p>
+                  <p className="text-sm text-muted">No incoming invites.</p>
                 ) : (
                   incomingCards.map((entry) => (
-                    <div key={entry.requestId} className="rounded-2xl border border-[#2a436d] bg-[#102346] p-3">
+                    <div key={entry.requestId} className="rounded-2xl border border-border bg-[#1b1c20] p-3">
                       <div className="flex items-center gap-3">
                         {entry.avatarUrl ? (
                           <img
                             src={entry.avatarUrl}
                             alt={entry.fullName}
-                            className="h-10 w-10 rounded-xl border border-[#35527f] object-cover"
+                            className="h-10 w-10 rounded-xl border border-border object-cover"
                           />
                         ) : (
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#35527f] bg-[#0d1e40] text-sm font-semibold">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-[#202228] text-sm font-semibold">
                             {entry.fullName.slice(0, 1).toUpperCase()}
                           </div>
                         )}
                         <div>
                           <p className="font-semibold">{entry.fullName}</p>
-                          <p className="text-xs text-[#9fb5da]">@{entry.username}</p>
-                          <p className="text-xs text-[#89a5d3]">{entry.roleFocus}</p>
+                          <p className="text-xs text-muted">@{entry.username}</p>
+                          <p className="text-xs text-muted">{entry.roleFocus}</p>
                         </div>
                       </div>
 
-                      <p className="mt-2 text-[11px] text-[#88a3cf]">
+                      <p className="mt-2 text-[11px] text-muted">
                         {entry.email || "No email"} {entry.phone ? `· ${entry.phone}` : ""}
                       </p>
 
                       <div className="mt-3 flex gap-2">
                         <form action={acceptFriendRequest}>
                           <input type="hidden" name="requestId" value={entry.requestId} />
-                          <button className="rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-[#04231d]">
+                          <button className="rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-[#13100a]">
                             Accept
                           </button>
                         </form>
                         <form action={declineFriendRequest}>
                           <input type="hidden" name="requestId" value={entry.requestId} />
-                          <button className="rounded-lg border border-[#35527f] px-3 py-2 text-xs font-semibold">
+                          <button className="rounded-lg border border-border px-3 py-2 text-xs font-semibold">
                             Decline
                           </button>
                         </form>
@@ -556,35 +556,35 @@ export default async function SocialPage({
               </div>
             </section>
 
-            <section className="rounded-[28px] border border-[#294067]/45 bg-[linear-gradient(160deg,rgba(8,19,43,0.94),rgba(7,16,35,0.92))] p-5 shadow-[0_24px_70px_rgba(1,7,18,0.56)]">
+            <section className="rounded-2xl border border-border bg-[#16171a] p-5">
               <h3 className="text-lg font-semibold">Outgoing invites</h3>
               <div className="mt-3 space-y-3">
                 {outgoingCards.length === 0 ? (
-                  <p className="text-sm text-[#9fb5da]">No outgoing invites.</p>
+                  <p className="text-sm text-muted">No outgoing invites.</p>
                 ) : (
                   outgoingCards.map((entry) => (
-                    <div key={entry.requestId} className="rounded-2xl border border-[#2a436d] bg-[#102346] p-3">
+                    <div key={entry.requestId} className="rounded-2xl border border-border bg-[#1b1c20] p-3">
                       <div className="flex items-center gap-3">
                         {entry.avatarUrl ? (
                           <img
                             src={entry.avatarUrl}
                             alt={entry.fullName}
-                            className="h-10 w-10 rounded-xl border border-[#35527f] object-cover"
+                            className="h-10 w-10 rounded-xl border border-border object-cover"
                           />
                         ) : (
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#35527f] bg-[#0d1e40] text-sm font-semibold">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-[#202228] text-sm font-semibold">
                             {entry.fullName.slice(0, 1).toUpperCase()}
                           </div>
                         )}
                         <div>
                           <p className="font-semibold">{entry.fullName}</p>
-                          <p className="text-xs text-[#9fb5da]">@{entry.username}</p>
-                          <p className="text-xs text-[#89a5d3]">{entry.roleFocus}</p>
+                          <p className="text-xs text-muted">@{entry.username}</p>
+                          <p className="text-xs text-muted">{entry.roleFocus}</p>
                         </div>
                       </div>
                       <form action={cancelFriendRequest} className="mt-3">
                         <input type="hidden" name="requestId" value={entry.requestId} />
-                        <button className="rounded-lg border border-[#35527f] px-3 py-2 text-xs font-semibold">
+                        <button className="rounded-lg border border-border px-3 py-2 text-xs font-semibold">
                           Cancel invite
                         </button>
                       </form>
@@ -594,11 +594,11 @@ export default async function SocialPage({
               </div>
             </section>
 
-            <section className="rounded-[28px] border border-[#294067]/45 bg-[linear-gradient(160deg,rgba(8,19,43,0.94),rgba(7,16,35,0.92))] p-5 shadow-[0_24px_70px_rgba(1,7,18,0.56)]">
+            <section className="rounded-2xl border border-border bg-[#16171a] p-5">
               <h3 className="text-lg font-semibold">Friends ({friendSummaries.length})</h3>
               <div className="mt-3 space-y-3">
                 {friendSummaries.length === 0 ? (
-                  <p className="text-sm text-[#9fb5da]">No friends yet.</p>
+                  <p className="text-sm text-muted">No friends yet.</p>
                 ) : (
                   friendSummaries.map((friend) => {
                     const isActive = friend.id === activeFriendId;
@@ -608,8 +608,8 @@ export default async function SocialPage({
                         href={`/social?chat=${friend.id}`}
                         className={`block rounded-2xl border p-3 transition ${
                           isActive
-                            ? "border-accent bg-[#153058]"
-                            : "border-[#2a436d] bg-[#102346] hover:border-[#466699] hover:bg-[#13305b]"
+                            ? "border-accent bg-[#252831]"
+                            : "border-border bg-[#1b1c20] hover:border-[#3a3d45] hover:bg-[#202228]"
                         }`}
                       >
                         <div className="flex items-start gap-3">
@@ -617,10 +617,10 @@ export default async function SocialPage({
                             <img
                               src={friend.avatarUrl}
                               alt={friend.fullName}
-                              className="h-12 w-12 rounded-xl border border-[#35527f] object-cover"
+                              className="h-12 w-12 rounded-xl border border-border object-cover"
                             />
                           ) : (
-                            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-[#35527f] bg-[#0d1e40] text-sm font-semibold">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-[#202228] text-sm font-semibold">
                               {friend.fullName.slice(0, 1).toUpperCase()}
                             </div>
                           )}
@@ -628,14 +628,14 @@ export default async function SocialPage({
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-2">
                               <p className="truncate font-semibold">{friend.fullName}</p>
-                              <span className="rounded-full border border-[#395984] bg-[#0f2446] px-2 py-0.5 text-[10px] font-semibold text-[#d2e3ff]">
+                              <span className="rounded-full border border-border bg-[#252831] px-2 py-0.5 text-[10px] font-semibold text-foreground">
                                 {friend.levelLabel}
                               </span>
                             </div>
-                            <p className="truncate text-xs text-[#9fb5da]">@{friend.username}</p>
-                            <p className="truncate text-xs text-[#89a5d3]">{friend.roleFocus}</p>
+                            <p className="truncate text-xs text-muted">@{friend.username}</p>
+                            <p className="truncate text-xs text-muted">{friend.roleFocus}</p>
                             {friend.strongest.length > 0 ? (
-                              <p className="mt-1 truncate text-[11px] text-[#7cd9be]">
+                              <p className="mt-1 truncate text-[11px] text-accent">
                                 Strongest: {friend.strongest.join(", ")}
                               </p>
                             ) : null}
@@ -672,10 +672,10 @@ export default async function SocialPage({
           />
 
           <aside className="space-y-5">
-            <section className="rounded-[28px] border border-[#294067]/45 bg-[linear-gradient(160deg,rgba(8,19,43,0.94),rgba(7,16,35,0.92))] p-5 shadow-[0_24px_70px_rgba(1,7,18,0.56)]">
+            <section className="rounded-2xl border border-border bg-[#16171a] p-5">
               <h2 className="text-xl font-semibold">Filmmaker profile</h2>
               {!profilePanel ? (
-                <p className="mt-3 text-sm text-[#9fb5da]">
+                <p className="mt-3 text-sm text-muted">
                   Select a friend to view their cinematography profile context.
                 </p>
               ) : (
@@ -685,62 +685,62 @@ export default async function SocialPage({
                       <img
                         src={profilePanel.avatarUrl}
                         alt={profilePanel.fullName}
-                        className="h-16 w-16 rounded-2xl border border-[#35527f] object-cover"
+                        className="h-16 w-16 rounded-2xl border border-border object-cover"
                       />
                     ) : (
-                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-[#35527f] bg-[#0d1e40] text-lg font-semibold">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-[#202228] text-lg font-semibold">
                         {profilePanel.fullName.slice(0, 1).toUpperCase()}
                       </div>
                     )}
                     <div>
                       <p className="text-lg font-semibold">{profilePanel.fullName}</p>
-                      <p className="text-sm text-[#9fb5da]">@{profilePanel.username}</p>
+                      <p className="text-sm text-muted">@{profilePanel.username}</p>
                     </div>
                   </div>
 
                   <div className="mt-4 grid gap-2">
-                    <div className="rounded-xl border border-[#2a436d] bg-[#102346] px-3 py-2">
-                      <p className="text-xs text-[#9fb5da]">Current level</p>
+                    <div className="rounded-xl border border-border bg-[#1b1c20] px-3 py-2">
+                      <p className="text-xs text-muted">Current level</p>
                       <p className="font-semibold">{profilePanel.levelLabel}</p>
                     </div>
-                    <div className="rounded-xl border border-[#2a436d] bg-[#102346] px-3 py-2">
-                      <p className="text-xs text-[#9fb5da]">Role focus</p>
+                    <div className="rounded-xl border border-border bg-[#1b1c20] px-3 py-2">
+                      <p className="text-xs text-muted">Role focus</p>
                       <p className="font-semibold">{profilePanel.roleFocus}</p>
                     </div>
-                    <div className="rounded-xl border border-[#2a436d] bg-[#102346] px-3 py-2">
-                      <p className="text-xs text-[#9fb5da]">Experience level</p>
+                    <div className="rounded-xl border border-border bg-[#1b1c20] px-3 py-2">
+                      <p className="text-xs text-muted">Experience level</p>
                       <p className="font-semibold">{profilePanel.experienceLevel}</p>
                     </div>
                   </div>
 
-                  <div className="mt-4 rounded-xl border border-[#2a436d] bg-[#102346] px-3 py-2">
-                    <p className="text-xs text-[#9fb5da]">Bio</p>
-                    <p className="mt-1 text-sm text-[#d4e4ff]">{profilePanel.bio}</p>
+                  <div className="mt-4 rounded-xl border border-border bg-[#1b1c20] px-3 py-2">
+                    <p className="text-xs text-muted">Bio</p>
+                    <p className="mt-1 text-sm text-[#dde0e8]">{profilePanel.bio}</p>
                   </div>
 
-                  <div className="mt-4 rounded-xl border border-[#2a436d] bg-[#102346] px-3 py-2">
-                    <p className="text-xs text-[#9fb5da]">Strongest disciplines</p>
+                  <div className="mt-4 rounded-xl border border-border bg-[#1b1c20] px-3 py-2">
+                    <p className="text-xs text-muted">Strongest disciplines</p>
                     {profilePanel.strongest.length > 0 ? (
-                      <p className="mt-1 text-sm font-semibold text-[#7ce2c2]">
+                      <p className="mt-1 text-sm font-semibold text-accent">
                         {profilePanel.strongest.join(", ")}
                       </p>
                     ) : (
-                      <p className="mt-1 text-sm text-[#9fb5da]">No assessment signal yet.</p>
+                      <p className="mt-1 text-sm text-muted">No assessment signal yet.</p>
                     )}
                   </div>
 
-                  <div className="mt-4 rounded-xl border border-[#2a436d] bg-[#102346] px-3 py-2">
-                    <p className="text-xs text-[#9fb5da]">Mutual friends ({profilePanel.mutualFriends.length})</p>
+                  <div className="mt-4 rounded-xl border border-border bg-[#1b1c20] px-3 py-2">
+                    <p className="text-xs text-muted">Mutual friends ({profilePanel.mutualFriends.length})</p>
                     {profilePanel.mutualFriends.length > 0 ? (
                       <div className="mt-2 space-y-1">
                         {profilePanel.mutualFriends.map((entry) => (
-                          <p key={entry.id} className="text-sm text-[#d4e4ff]">
-                            {entry.fullName} <span className="text-[#92abcf]">@{entry.username}</span>
+                          <p key={entry.id} className="text-sm text-[#dde0e8]">
+                            {entry.fullName} <span className="text-muted">@{entry.username}</span>
                           </p>
                         ))}
                       </div>
                     ) : (
-                      <p className="mt-1 text-sm text-[#9fb5da]">No mutual friends yet.</p>
+                      <p className="mt-1 text-sm text-muted">No mutual friends yet.</p>
                     )}
                   </div>
 
@@ -749,7 +749,7 @@ export default async function SocialPage({
                       href={profilePanel.instagramUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-4 inline-flex rounded-xl border border-[#35527f] px-3 py-2 text-sm font-semibold transition hover:bg-[#12264d]"
+                      className="mt-4 inline-flex rounded-xl border border-border px-3 py-2 text-sm font-semibold transition hover:bg-[#262a33]"
                     >
                       Open Instagram
                     </a>
@@ -757,7 +757,7 @@ export default async function SocialPage({
 
                   <Link
                     href={`/social/profile/${encodeURIComponent(profilePanel.username)}`}
-                    className="mt-3 inline-flex rounded-xl border border-[#35527f] px-3 py-2 text-sm font-semibold transition hover:bg-[#12264d]"
+                    className="mt-3 inline-flex rounded-xl border border-border px-3 py-2 text-sm font-semibold transition hover:bg-[#262a33]"
                   >
                     Open full profile
                   </Link>
