@@ -31,12 +31,19 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
   }
 
   if (existingInProgress?.id && forceNew) {
-    await supabase
+    const { error: abandonError } = await supabase
       .from("practice_sessions")
-      .delete()
+      .update({
+        status: "abandoned",
+        completed_at: new Date().toISOString(),
+      })
       .eq("id", existingInProgress.id)
       .eq("user_id", user.id)
       .eq("status", "in_progress");
+
+    if (abandonError) {
+      redirect(`/dashboard?error=practice_abandon_failed`);
+    }
   }
 
   const { data: questionRows, error: questionError } = await supabase
@@ -187,7 +194,14 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
   const { error: answersError } = await supabase.from("practice_answers").insert(answerRows);
 
   if (answersError) {
-    await supabase.from("practice_sessions").delete().eq("id", sessionId).eq("user_id", user.id);
+    await supabase
+      .from("practice_sessions")
+      .update({
+        status: "abandoned",
+        completed_at: new Date().toISOString(),
+      })
+      .eq("id", sessionId)
+      .eq("user_id", user.id);
     redirect(`/dashboard?error=practice_start_failed`);
   }
 

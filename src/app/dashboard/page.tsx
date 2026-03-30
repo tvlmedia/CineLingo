@@ -24,7 +24,13 @@ function toCategory(value: string): AssessmentCategory | null {
     : null;
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ error?: string }>;
+}) {
+  const params = (await searchParams) || {};
+  const error = String(params.error || "");
   const user = await requireUser();
   const supabase = await createClient();
   const today = isoToday();
@@ -168,6 +174,17 @@ export default async function DashboardPage() {
   return (
     <main className="min-h-screen py-8 md:py-10">
       <Container>
+        {error ? (
+          <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+            {error === "practice_abandon_failed"
+              ? "Could not close your previous session. Try again."
+              : error === "practice_start_failed"
+                ? "Could not start a new practice session. Try again."
+                : error === "practice_questions_unavailable"
+                  ? "No valid questions available right now."
+                  : "Something went wrong while starting practice."}
+          </div>
+        ) : null}
         <header className="mb-7 rounded-2xl border border-border bg-[#151619] px-6 py-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
