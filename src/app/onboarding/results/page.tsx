@@ -4,7 +4,7 @@ import { Card, Container } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { AssessmentBand, AssessmentCategory } from "@/lib/assessment/types";
-import { scoreBand, totalInterpretation } from "@/lib/assessment/engine";
+import { parseQuestionOptions, scoreBand, totalInterpretation } from "@/lib/assessment/engine";
 import { retakeAssessment } from "../actions";
 
 type ResultsSearchParams = {
@@ -17,6 +17,25 @@ type ScoreRow = {
   question_count: number;
   score_band: AssessmentBand;
   interpretation: string | null;
+};
+
+type AnswerReviewRow = {
+  selected_option_id: string | null;
+  is_correct: boolean | null;
+  question:
+    | {
+        category?: unknown;
+        prompt?: unknown;
+        options?: unknown;
+        explanation?: unknown;
+      }
+    | Array<{
+        category?: unknown;
+        prompt?: unknown;
+        options?: unknown;
+        explanation?: unknown;
+      }>
+    | null;
 };
 
 function bandClass(band: AssessmentBand): string {
@@ -64,6 +83,42 @@ export default async function OnboardingResultsPage({
     attempt.total_correct || 0,
     attempt.total_questions || 0
   );
+
+  const { data: reviewRows } = await supabase
+    .from("assessment_answers")
+    .select("selected_option_id, is_correct, question:assessment_questions(category, prompt, options, explanation)")
+    .eq("attempt_id", attemptId)
+    .eq("user_id", user.id)
+    .eq("is_correct", false)
+    .order("question_order", { ascending: true });
+
+  const wrongAnswers = ((reviewRows || []) as AnswerReviewRow[])
+    .map((row) => {
+      const rawQuestion = Array.isArray(row.question) ? row.question[0] : row.question;
+      if (!rawQuestion) return null;
+
+      const category = typeof rawQuestion.category === "string" ? rawQuestion.category : null;
+      const prompt = typeof rawQuestion.prompt === "string" ? rawQuestion.prompt : null;
+      const explanation = typeof rawQuestion.explanation === "string" ? rawQuestion.explanation : null;
+      const options = parseQuestionOptions(rawQuestion.options);
+
+      if (!category || !prompt || !explanation || !options) return null;
+
+      const selected = options.find((option) => option.id === row.selected_option_id)?.text || "No answer";
+      const correct = options.find((option) => option.isCorrect)?.text || "-";
+
+      return {
+        category,
+        prompt,
+        selected,
+        correct,
+        explanation,
+      };
+    })
+    .filter(
+      (row): row is { category: string; prompt: string; selected: string; correct: string; explanation: string } =>
+        Boolean(row)
+    );
 
   return (
     <main className="min-h-screen py-10 md:py-14">
@@ -133,6 +188,25 @@ export default async function OnboardingResultsPage({
                 Back to dashboard
               </Link>
             </div>
+          </Card>
+
+          <Card>
+            <h2 className="mb-4 text-2xl font-semibold">Answer Review</h2>
+            {wrongAnswers.length === 0 ? (
+              <p className="text-sm text-muted">No wrong answers in this attempt. Clean run.</p>
+            ) : (
+              <div className="space-y-3">
+                {wrongAnswers.map((item, index) => (
+                  <div key={`${item.category}-${index}`} className="rounded-2xl border border-border bg-white/5 p-4">
+                    <p className="mb-1 text-xs uppercase tracking-[0.14em] text-muted">{item.category}</p>
+                    <p className="font-semibold">{item.prompt}</p>
+                    <p className="mt-2 text-sm text-red-200">Your answer: {item.selected}</p>
+                    <p className="text-sm text-emerald-200">Correct answer: {item.correct}</p>
+                    <p className="mt-2 text-sm text-muted">{item.explanation}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
         </div>
       </Container>

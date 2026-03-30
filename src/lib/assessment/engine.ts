@@ -7,8 +7,10 @@ import {
   type CategoryScore,
 } from "@/lib/assessment/types";
 
-export const QUESTIONS_PER_CATEGORY = 5;
-export const TOTAL_ASSESSMENT_QUESTIONS = ASSESSMENT_CATEGORIES.length * QUESTIONS_PER_CATEGORY;
+export const TOTAL_ASSESSMENT_QUESTIONS = 20;
+export const MIN_QUESTIONS_PER_CATEGORY = Math.floor(
+  TOTAL_ASSESSMENT_QUESTIONS / ASSESSMENT_CATEGORIES.length
+);
 
 export function shuffleArray<T>(items: T[]): T[] {
   const copy = [...items];
@@ -77,7 +79,7 @@ export function parseQuestionOptions(raw: unknown): AssessmentOption[] | null {
 
 export function pickAssessmentQuestions(
   questions: AssessmentQuestion[],
-  countPerCategory: number = QUESTIONS_PER_CATEGORY
+  totalQuestions: number = TOTAL_ASSESSMENT_QUESTIONS
 ): AssessmentQuestion[] {
   const byCategory = new Map<AssessmentCategory, AssessmentQuestion[]>();
 
@@ -89,15 +91,51 @@ export function pickAssessmentQuestions(
     byCategory.get(question.category)?.push(question);
   }
 
+  const selectedByCategory = new Map<AssessmentCategory, AssessmentQuestion[]>();
   const selected: AssessmentQuestion[] = [];
 
   for (const category of ASSESSMENT_CATEGORIES) {
-    const pool = byCategory.get(category) || [];
-    if (pool.length < countPerCategory) {
+    const pool = shuffleArray(byCategory.get(category) || []);
+    if (pool.length < MIN_QUESTIONS_PER_CATEGORY) {
       throw new Error(`Not enough questions in category: ${category}`);
     }
 
-    selected.push(...shuffleArray(pool).slice(0, countPerCategory));
+    const pickedBase = pool.slice(0, MIN_QUESTIONS_PER_CATEGORY);
+    selectedByCategory.set(category, pickedBase);
+    selected.push(...pickedBase);
+  }
+
+  let remaining = totalQuestions - selected.length;
+  if (remaining < 0) {
+    throw new Error("Total questions is lower than guaranteed per-category minimum.");
+  }
+
+  if (remaining > 0) {
+    const categoriesWithExtra = shuffleArray(
+      ASSESSMENT_CATEGORIES.filter((category) => {
+        const pool = byCategory.get(category) || [];
+        return pool.length > MIN_QUESTIONS_PER_CATEGORY;
+      })
+    );
+
+    for (const category of categoriesWithExtra) {
+      if (remaining <= 0) break;
+
+      const pool = byCategory.get(category) || [];
+      const alreadyPicked = selectedByCategory.get(category) || [];
+      const usedIds = new Set(alreadyPicked.map((entry) => entry.id));
+      const next = pool.find((entry) => !usedIds.has(entry.id));
+
+      if (next) {
+        selected.push(next);
+        selectedByCategory.set(category, [...alreadyPicked, next]);
+        remaining -= 1;
+      }
+    }
+  }
+
+  if (remaining > 0) {
+    throw new Error("Not enough total active questions for requested assessment size.");
   }
 
   return shuffleArray(selected);

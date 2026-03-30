@@ -14,7 +14,6 @@ import {
   categoryInterpretation,
   computeCategoryScores,
   pickAssessmentQuestions,
-  QUESTIONS_PER_CATEGORY,
   TOTAL_ASSESSMENT_QUESTIONS,
 } from "@/lib/assessment/engine";
 import { ASSESSMENT_QUESTION_BANK } from "@/lib/assessment/question-bank";
@@ -238,7 +237,7 @@ export async function startAssessment(formData: FormData): Promise<void> {
   let selectedQuestions: AssessmentQuestion[];
 
   try {
-    selectedQuestions = pickAssessmentQuestions(activeQuestions, QUESTIONS_PER_CATEGORY);
+    selectedQuestions = pickAssessmentQuestions(activeQuestions, TOTAL_ASSESSMENT_QUESTIONS);
   } catch (error) {
     const reason =
       error instanceof Error ? error.message : "unknown_category_distribution_problem";

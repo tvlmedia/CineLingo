@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Card, Container } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { ASSESSMENT_CATEGORIES } from "@/lib/assessment/types";
-import { QUESTIONS_PER_CATEGORY, TOTAL_ASSESSMENT_QUESTIONS } from "@/lib/assessment/engine";
+import { MIN_QUESTIONS_PER_CATEGORY, TOTAL_ASSESSMENT_QUESTIONS } from "@/lib/assessment/engine";
 import { createClient } from "@/lib/supabase/server";
 import { startAssessment } from "./actions";
 
@@ -80,8 +80,8 @@ export default async function OnboardingPage({
             <h1 className="mb-4 text-3xl font-bold md:text-4xl">Cinematic Knowledge Intake</h1>
             <p className="mb-6 max-w-3xl text-muted">
               This intake estimates your current level across six cinematography disciplines. You will
-              answer {TOTAL_ASSESSMENT_QUESTIONS} questions ({QUESTIONS_PER_CATEGORY} per category), one at a
-              time.
+              answer {TOTAL_ASSESSMENT_QUESTIONS} questions total ({MIN_QUESTIONS_PER_CATEGORY} guaranteed per
+              category, with extra slots balanced each attempt), one at a time.
             </p>
 
             <div className="mb-6 flex flex-wrap gap-2">

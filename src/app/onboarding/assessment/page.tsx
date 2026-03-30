@@ -4,8 +4,8 @@ import { Card, Container } from "@/components/ui";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { AssessmentOption } from "@/lib/assessment/types";
-import { parseQuestionOptions, TOTAL_ASSESSMENT_QUESTIONS } from "@/lib/assessment/engine";
-import { finalizeAssessment, submitAssessmentAnswer } from "../actions";
+import { parseQuestionOptions } from "@/lib/assessment/engine";
+import { AssessmentRunner } from "./AssessmentRunner";
 
 type AssessmentSearchParams = {
   attempt?: string;
@@ -171,30 +171,44 @@ export default async function AssessmentPage({
     redirect("/onboarding?error=attempt_not_found");
   }
 
-  const unansweredIndex = rows.findIndex((row) => !row.selected_option_id);
-  const unresolvedQuestionOrder = unansweredIndex >= 0 ? rows[unansweredIndex].question_order : rows.length;
-
-  const requestedOrder = Number(params.q || unresolvedQuestionOrder || 1);
-  const safeOrder = Number.isFinite(requestedOrder)
-    ? Math.max(1, Math.min(requestedOrder, rows.length))
-    : unresolvedQuestionOrder;
-
-  const currentRow = rows.find((row) => row.question_order === safeOrder) || rows[0];
-  const currentQuestion = currentRow.question;
-
-  if (!currentQuestion) {
-    redirect("/onboarding?error=result_load_failed");
-  }
-
-  const parsedOptions = parseQuestionOptions(currentQuestion.options);
-  if (!parsedOptions) {
-    redirect("/onboarding?error=result_load_failed");
-  }
-
-  const visualOptions = orderedOptions(parsedOptions, currentRow.options_order);
-  const answeredCount = rows.filter((row) => row.selected_option_id).length;
-  const progress = Math.round((answeredCount / rows.length) * 100);
   const errorMessage = assessmentErrorMessage(params.error);
+  const requestedOrder = Number(params.q || 1);
+  const initialQuestionOrder = Number.isFinite(requestedOrder)
+    ? Math.max(1, Math.min(requestedOrder, rows.length))
+    : 1;
+
+  const runnerQuestions = rows
+    .map((row) => {
+      if (!row.question) return null;
+      const parsedOptions = parseQuestionOptions(row.question.options);
+      if (!parsedOptions) return null;
+
+      return {
+        answerId: row.id,
+        questionOrder: row.question_order,
+        selectedOptionId: row.selected_option_id,
+        category: row.question.category,
+        prompt: row.question.prompt,
+        options: orderedOptions(parsedOptions, row.options_order).map((option) => ({
+          id: option.id,
+          text: option.text,
+        })),
+      };
+    })
+    .filter(
+      (row): row is {
+        answerId: string;
+        questionOrder: number;
+        selectedOptionId: string | null;
+        category: string;
+        prompt: string;
+        options: Array<{ id: string; text: string }>;
+      } => Boolean(row)
+    );
+
+  if (runnerQuestions.length === 0) {
+    redirect("/onboarding?error=result_load_failed");
+  }
 
   return (
     <main className="min-h-screen py-10 md:py-14">
@@ -214,76 +228,17 @@ export default async function AssessmentPage({
               </Link>
             </div>
 
-            <div className="mb-4">
-              <div className="mb-2 flex items-center justify-between text-xs text-muted">
-                <span>
-                  Question {currentRow.question_order} of {rows.length}
-                </span>
-                <span>{progress}% complete</span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                <div
-                  className="h-full rounded-full bg-accent transition-all"
-                  style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
-                />
-              </div>
-            </div>
-
-            <p className="mb-2 text-xs uppercase tracking-[0.18em] text-muted">{currentQuestion.category}</p>
-            <h2 className="mb-5 text-xl font-semibold md:text-2xl">{currentQuestion.prompt}</h2>
-
             {errorMessage ? (
               <p className="mb-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
                 {errorMessage}
               </p>
             ) : null}
 
-            <form action={submitAssessmentAnswer} className="space-y-4">
-              <input type="hidden" name="attemptId" value={attemptId} />
-              <input type="hidden" name="answerId" value={currentRow.id} />
-
-              <div className="space-y-3">
-                {visualOptions.map((option) => {
-                  const optionId = `${currentRow.id}-${option.id}`;
-                  return (
-                    <label
-                      key={option.id}
-                      htmlFor={optionId}
-                      className="block cursor-pointer rounded-2xl border border-border bg-white/5 p-4 transition hover:border-accent/70 hover:bg-white/10"
-                    >
-                      <div className="flex items-start gap-3">
-                        <input
-                          id={optionId}
-                          type="radio"
-                          name="selectedOptionId"
-                          value={option.id}
-                          required
-                          defaultChecked={currentRow.selected_option_id === option.id}
-                          className="mt-0.5 h-4 w-4"
-                        />
-                        <span>{option.text}</span>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                <p className="text-xs text-muted">
-                  {TOTAL_ASSESSMENT_QUESTIONS} total questions, fixed category balance.
-                </p>
-                <button className="rounded-2xl bg-accent px-5 py-2.5 font-semibold text-[#04231d]">
-                  {currentRow.question_order === rows.length ? "Finish assessment" : "Save and continue"}
-                </button>
-              </div>
-            </form>
-
-            {answeredCount === rows.length ? (
-              <form action={finalizeAssessment} className="mt-4">
-                <input type="hidden" name="attemptId" value={attemptId} />
-                <button className="text-sm font-semibold text-accent">Finalize now</button>
-              </form>
-            ) : null}
+            <AssessmentRunner
+              attemptId={attemptId}
+              questions={runnerQuestions}
+              initialQuestionOrder={initialQuestionOrder}
+            />
           </Card>
         </div>
       </Container>
