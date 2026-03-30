@@ -31,6 +31,11 @@ const SUBJECTIVE_TERMS = [
   "creative preference",
   "what feels",
   "artistically",
+  "most significantly affects",
+  "single biggest factor",
+  "primary factor",
+  "main factor",
+  "which factor matters most",
 ] as const;
 
 function isAssessmentCategory(value: string): value is AssessmentCategory {
@@ -167,6 +172,9 @@ export async function generateAIDailyQuestions(input: {
     `Allowed categories only: ${ASSESSMENT_CATEGORIES.join(", ")}.`,
     "CRITICAL: only produce objective, factual, technically verifiable questions with one clear correct answer.",
     "Do not produce taste/style/preference questions where multiple answers can be valid.",
+    "Avoid ranking-style prompts where more than one option can be defensible (e.g. 'most significant factor').",
+    "Prefer definition-based, standards-based, or numeric/mechanical cause-effect questions.",
+    "If a prompt can have multiple valid answers in practice, do not include it.",
     "All choices must be unique. Exactly one correct choice. The other 3 must be clearly false on factual grounds.",
     "Question type must be technical.",
     "Questions must be concise and set-practical for professional filmmakers.",
