@@ -19,19 +19,48 @@ function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-type PracticeAnswerJoinedRow = {
+type JoinedQuestionRaw =
+  | {
+      id?: unknown;
+      category?: unknown;
+      prompt?: unknown;
+      options?: unknown;
+      explanation?: unknown;
+    }
+  | Array<{
+      id?: unknown;
+      category?: unknown;
+      prompt?: unknown;
+      options?: unknown;
+      explanation?: unknown;
+    }>
+  | null;
+
+function normalizeJoinedQuestion(value: JoinedQuestionRaw): {
   id: string;
-  question_order: number;
-  selected_option_id: string | null;
-  is_correct: boolean | null;
-  question: {
-    id: string;
-    category: string;
-    prompt: string;
-    options: unknown;
-    explanation: string;
-  } | null;
-};
+  category: string;
+  prompt: string;
+  options: unknown;
+  explanation: string;
+} | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw || typeof raw !== "object") return null;
+
+  const id = typeof raw.id === "string" ? raw.id : null;
+  const category = typeof raw.category === "string" ? raw.category : null;
+  const prompt = typeof raw.prompt === "string" ? raw.prompt : null;
+  const explanation = typeof raw.explanation === "string" ? raw.explanation : null;
+
+  if (!id || !category || !prompt || !explanation) return null;
+
+  return {
+    id,
+    category,
+    prompt,
+    options: raw.options,
+    explanation,
+  };
+}
 
 async function finalizeSessionAndProgress(sessionId: string, userId: string) {
   const supabase = await createClient();
@@ -224,7 +253,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "answer_not_found" }, { status: 404 });
     }
 
-    const question = (answerRow as PracticeAnswerJoinedRow).question;
+    const question = normalizeJoinedQuestion(
+      (answerRow as { question?: JoinedQuestionRaw } | null)?.question ?? null
+    );
     const options = parseQuestionOptions(question?.options);
 
     if (!question || !options) {
