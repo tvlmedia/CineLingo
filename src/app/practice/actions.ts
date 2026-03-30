@@ -3,14 +3,29 @@
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { ASSESSMENT_CATEGORIES, type AssessmentCategory } from "@/lib/assessment/types";
 import {
   buildShuffledOptionOrder,
   toPracticeQuestion,
 } from "@/lib/practice/engine";
 import { buildAdaptiveDailyLesson } from "@/lib/practice/lesson-generator";
-import { buildLearningProfile, saveLearningProfile } from "@/lib/practice/profile";
+import { buildLearningProfile, saveLearningProfile, type LearningProfile } from "@/lib/practice/profile";
 import { generateAIDailyQuestions } from "@/lib/practice/ai-generator";
 import { DAILY_GOAL_XP_DEFAULT } from "@/lib/practice/types";
+
+function isAssessmentCategory(value: string): value is AssessmentCategory {
+  return (ASSESSMENT_CATEGORIES as readonly string[]).includes(value);
+}
+
+function normalizeProfileCategories(value: unknown): AssessmentCategory[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is AssessmentCategory => typeof entry === "string" && isAssessmentCategory(entry));
+}
+
+function normalizeStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === "string");
+}
 
 export async function startDailyPractice(formData: FormData): Promise<void> {
   const user = await requireUser();
@@ -46,38 +61,35 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
     }
   }
 
-  const { data: questionRows, error: questionError } = await supabase
-    .from("assessment_questions")
-    .select("id, key, category, subtopic, difficulty, question_type, role_relevance, prompt, options, explanation")
-    .eq("is_active", true);
-
-  if (questionError) {
-    redirect(`/dashboard?error=practice_questions_unavailable`);
-  }
-
-  const questions = (questionRows || [])
-    .map((row) =>
-      toPracticeQuestion({
-        id: String(row.id),
-        key: String(row.key),
-        category: String(row.category),
-        subtopic: String(row.subtopic || ""),
-        difficulty: String(row.difficulty || ""),
-        question_type: String(row.question_type || ""),
-        role_relevance: row.role_relevance,
-        prompt: String(row.prompt),
-        options: row.options,
-        explanation: String(row.explanation),
-      })
+  const { data: cachedProfileRow } = await supabase
+    .from("user_learning_profiles")
+    .select(
+      "role_focus_snapshot, weakest_disciplines, strongest_disciplines, weak_subtopics, total_xp, weekly_xp, current_streak, recent_accuracy"
     )
-    .filter((row): row is NonNullable<typeof row> => Boolean(row));
+    .eq("user_id", user.id)
+    .maybeSingle();
 
-  if (questions.length < 10) {
-    redirect(`/dashboard?error=practice_questions_unavailable`);
+  let learningProfile: LearningProfile | null = cachedProfileRow
+    ? {
+        userId: user.id,
+        roleFocus: String(cachedProfileRow.role_focus_snapshot || ""),
+        weakestDisciplines: normalizeProfileCategories(cachedProfileRow.weakest_disciplines),
+        strongestDisciplines: normalizeProfileCategories(cachedProfileRow.strongest_disciplines),
+        weakSubtopics: normalizeStringList(cachedProfileRow.weak_subtopics),
+        totalXp: Number(cachedProfileRow.total_xp || 0),
+        weeklyXp: Number(cachedProfileRow.weekly_xp || 0),
+        currentStreak: Number(cachedProfileRow.current_streak || 0),
+        recentAccuracy: Number(cachedProfileRow.recent_accuracy || 0),
+      }
+    : null;
+
+  if (!learningProfile || learningProfile.weakestDisciplines.length === 0) {
+    learningProfile = await buildLearningProfile(supabase, user.id);
+    await saveLearningProfile(supabase, learningProfile);
   }
-
-  const learningProfile = await buildLearningProfile(supabase, user.id);
-  await saveLearningProfile(supabase, learningProfile);
+  if (!learningProfile) {
+    redirect(`/dashboard?error=practice_start_failed`);
+  }
 
   const { data: missedRows } = await supabase
     .from("user_missed_questions")
@@ -140,6 +152,36 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
   }
 
   if (selected.length !== 10) {
+    const { data: questionRows, error: questionError } = await supabase
+      .from("assessment_questions")
+      .select("id, key, category, subtopic, difficulty, question_type, role_relevance, prompt, options, explanation")
+      .eq("is_active", true);
+
+    if (questionError) {
+      redirect(`/dashboard?error=practice_questions_unavailable`);
+    }
+
+    const questions = (questionRows || [])
+      .map((row) =>
+        toPracticeQuestion({
+          id: String(row.id),
+          key: String(row.key),
+          category: String(row.category),
+          subtopic: String(row.subtopic || ""),
+          difficulty: String(row.difficulty || ""),
+          question_type: String(row.question_type || ""),
+          role_relevance: row.role_relevance,
+          prompt: String(row.prompt),
+          options: row.options,
+          explanation: String(row.explanation),
+        })
+      )
+      .filter((row): row is NonNullable<typeof row> => Boolean(row));
+
+    if (questions.length < 10) {
+      redirect(`/dashboard?error=practice_questions_unavailable`);
+    }
+
     const fallback = buildAdaptiveDailyLesson(
       questions,
       learningProfile,
