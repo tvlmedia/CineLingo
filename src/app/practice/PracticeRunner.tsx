@@ -45,6 +45,9 @@ export function PracticeRunner({
   const [localQuestions, setLocalQuestions] = useState(questions);
   const [currentIndex, setCurrentIndex] = useState(initialIndex(questions, initialQuestionOrder));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [reportStatusByOrder, setReportStatusByOrder] = useState<
+    Record<number, "idle" | "sending" | "done" | "error">
+  >({});
 
   const [feedbackByOrder, setFeedbackByOrder] = useState<Record<number, Feedback>>(() => {
     const out: Record<number, Feedback> = {};
@@ -73,6 +76,9 @@ export function PracticeRunner({
   const progressPercent = Math.round((answeredCount / localQuestions.length) * 100);
 
   const currentFeedback = current ? feedbackByOrder[current.questionOrder] || null : null;
+  const currentReportStatus = current
+    ? reportStatusByOrder[current.questionOrder] || "idle"
+    : "idle";
 
   function updateSelectedOption(optionId: string) {
     if (!current || currentFeedback) {
@@ -173,6 +179,47 @@ export function PracticeRunner({
     });
   }
 
+  async function reportCurrentQuestion() {
+    if (!current || !currentFeedback) return;
+    if (currentReportStatus === "sending" || currentReportStatus === "done") return;
+
+    setReportStatusByOrder((state) => ({
+      ...state,
+      [current.questionOrder]: "sending",
+    }));
+
+    try {
+      const response = await fetch("/api/practice/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId,
+          answerId: current.answerId,
+          reason: "ambiguous_ai_question",
+          details: `Reported from in-session feedback. Selected: ${currentFeedback.selectedOptionText}. Correct shown: ${currentFeedback.correctOptionText}.`,
+        }),
+      });
+
+      if (!response.ok) {
+        setReportStatusByOrder((state) => ({
+          ...state,
+          [current.questionOrder]: "error",
+        }));
+        return;
+      }
+
+      setReportStatusByOrder((state) => ({
+        ...state,
+        [current.questionOrder]: "done",
+      }));
+    } catch {
+      setReportStatusByOrder((state) => ({
+        ...state,
+        [current.questionOrder]: "error",
+      }));
+    }
+  }
+
   if (!current) {
     return null;
   }
@@ -246,6 +293,23 @@ export function PracticeRunner({
             </p>
           ) : null}
           <p className="mt-2 text-[#d8dbdf]">{currentFeedback.explanation}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={reportCurrentQuestion}
+              disabled={currentReportStatus === "sending" || currentReportStatus === "done"}
+              className="rounded-lg border border-border bg-[#1a1b1f] px-3 py-1.5 text-xs font-semibold text-muted transition hover:bg-[#22252b] disabled:opacity-60"
+            >
+              {currentReportStatus === "sending"
+                ? "Reporting..."
+                : currentReportStatus === "done"
+                  ? "Reported"
+                  : "Report ambiguous question"}
+            </button>
+            {currentReportStatus === "error" ? (
+              <span className="text-xs text-red-300">Could not report. Try again.</span>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
