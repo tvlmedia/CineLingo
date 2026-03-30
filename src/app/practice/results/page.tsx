@@ -87,7 +87,9 @@ export default async function PracticeResultsPage({
 
   const { data: session } = await supabase
     .from("practice_sessions")
-    .select("id, status, total_questions, correct_count, xp_earned, completed_at, coach_summary, coach_next_focus, strongest_discipline, weakest_discipline")
+    .select(
+      "id, status, source, total_questions, correct_count, xp_earned, completed_at, coach_summary, coach_next_focus, strongest_discipline, weakest_discipline"
+    )
     .eq("id", sessionId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -213,6 +215,14 @@ export default async function PracticeResultsPage({
               Daily goal: {Number(dailyRow?.xp_earned || 0)}/{Number(dailyRow?.goal_target_xp || 50)} XP
               {dailyRow?.goal_met ? " (goal met)" : ""}
             </p>
+            <p className="mt-1 text-sm text-muted">
+              Session type:{" "}
+              {String(session.source || "") === "daily_ai"
+                ? "AI coach session"
+                : String(session.source || "") === "daily_ai_hybrid"
+                  ? "AI + question bank session"
+                  : "Adaptive bank session"}
+            </p>
             {strongestToday ? (
               <p className="mt-2 text-sm text-muted">Strongest area today: {strongestToday}</p>
             ) : null}
@@ -232,8 +242,23 @@ export default async function PracticeResultsPage({
             <div className="mt-5 flex flex-wrap gap-3">
               <form action={startDailyPractice}>
                 <input type="hidden" name="forceNew" value="1" />
+                <input type="hidden" name="mode" value="adaptive" />
                 <button className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-[#13100a]">
-                  Start another session
+                  Start adaptive session
+                </button>
+              </form>
+              <form action={startDailyPractice}>
+                <input type="hidden" name="forceNew" value="1" />
+                <input type="hidden" name="mode" value="ai_only" />
+                <button className="rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]">
+                  Start AI coach session
+                </button>
+              </form>
+              <form action={startDailyPractice}>
+                <input type="hidden" name="forceNew" value="1" />
+                <input type="hidden" name="mode" value="bank_only" />
+                <button className="rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]">
+                  Start fast session
                 </button>
               </form>
               <Link

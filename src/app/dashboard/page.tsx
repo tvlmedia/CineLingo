@@ -161,6 +161,7 @@ export default async function DashboardPage({
   const streak = Number(todayProgress?.current_streak || 0);
   const dailyGoalTarget = Number(todayProgress?.goal_target_xp || 50);
   const dailyGoalPct = Math.max(0, Math.min(100, Math.round((xpToday / dailyGoalTarget) * 100)));
+  const dailyGoalMet = Boolean(todayProgress?.goal_met) || xpToday >= dailyGoalTarget;
   const weeklyXp = (weeklyRows || []).reduce(
     (sum: number, row: { xp_earned?: unknown }) => sum + Number(row.xp_earned || 0),
     0
@@ -173,6 +174,11 @@ export default async function DashboardPage({
     0
   );
   const openMistakes = Number(openMistakesCount || 0);
+  const missionPracticeDone = sessionsToday > 0;
+  const missionReviewDone = openMistakes === 0;
+  const missionGoalDone = dailyGoalMet;
+  const missionDoneCount =
+    (missionPracticeDone ? 1 : 0) + (missionReviewDone ? 1 : 0) + (missionGoalDone ? 1 : 0);
   const isAdmin = String(user.email || "").toLowerCase() === "info@tvlmedia.nl";
   const weakSubtopics = Array.isArray(learningProfile?.weak_subtopics)
     ? learningProfile.weak_subtopics.filter((entry): entry is string => typeof entry === "string").slice(0, 3)
@@ -271,6 +277,16 @@ export default async function DashboardPage({
                 Start AI Coach Session
               </button>
             </form>
+            <form action={startDailyPractice} className="pointer-events-auto">
+              <input type="hidden" name="forceNew" value="1" />
+              <input type="hidden" name="mode" value="bank_only" />
+              <button
+                type="submit"
+                className="rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]"
+              >
+                Start fast session
+              </button>
+            </form>
             <Link
               href="/practice/review"
               className="pointer-events-auto rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]"
@@ -330,6 +346,68 @@ export default async function DashboardPage({
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-white/10">
               <div className="h-full rounded-full bg-accent" style={{ width: `${dailyGoalPct}%` }} />
+            </div>
+          </div>
+        </section>
+
+        <section className="mb-7 rounded-2xl border border-border bg-[#16171a] p-6">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h3 className="text-2xl font-semibold">Today&apos;s mission</h3>
+            <span className="rounded-full border border-border bg-[#1f2126] px-3 py-1 text-xs text-muted">
+              {missionDoneCount}/3 complete
+            </span>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-xl border border-border bg-[#1b1c20] p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-muted">Mission 1</p>
+              <p className="mt-2 font-semibold">Complete one daily session</p>
+              <p className="mt-1 text-xs text-muted">
+                {missionPracticeDone ? "Done today" : "Not completed yet"}
+              </p>
+              <span
+                className={`mt-3 inline-flex rounded-full border px-2.5 py-1 text-xs ${
+                  missionPracticeDone
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                    : "border-border bg-[#1f2126] text-muted"
+                }`}
+              >
+                {missionPracticeDone ? "Complete" : "Open"}
+              </span>
+            </div>
+
+            <div className="rounded-xl border border-border bg-[#1b1c20] p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-muted">Mission 2</p>
+              <p className="mt-2 font-semibold">Review mistakes queue</p>
+              <p className="mt-1 text-xs text-muted">
+                {missionReviewDone ? "No open mistakes" : `${openMistakes} open review item(s)`}
+              </p>
+              <span
+                className={`mt-3 inline-flex rounded-full border px-2.5 py-1 text-xs ${
+                  missionReviewDone
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                    : "border-border bg-[#1f2126] text-muted"
+                }`}
+              >
+                {missionReviewDone ? "Complete" : "Pending"}
+              </span>
+            </div>
+
+            <div className="rounded-xl border border-border bg-[#1b1c20] p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-muted">Mission 3</p>
+              <p className="mt-2 font-semibold">Hit daily XP goal</p>
+              <p className="mt-1 text-xs text-muted">
+                {xpToday}/{dailyGoalTarget} XP
+              </p>
+              <span
+                className={`mt-3 inline-flex rounded-full border px-2.5 py-1 text-xs ${
+                  missionGoalDone
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                    : "border-border bg-[#1f2126] text-muted"
+                }`}
+              >
+                {missionGoalDone ? "Complete" : "In progress"}
+              </span>
             </div>
           </div>
         </section>
