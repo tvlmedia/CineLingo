@@ -17,7 +17,8 @@ Basisstarter voor CineLingo met:
 3. Run `supabase.sql` in de SQL editor
 4. Kopieer `.env.local.example` naar `.env.local`
 5. Vul daar je Supabase URL en anon key in
-6. Run lokaal:
+6. Voor AI coach-samenvattingen in daily practice: zet ook `OPENAI_API_KEY` (en optioneel `OPENAI_MODEL`, default `gpt-4.1-mini`)
+7. Run lokaal:
 
 ```bash
 npm install

@@ -9,7 +9,7 @@ import {
 } from "@/lib/practice/engine";
 import { buildLearningProfile, saveLearningProfile } from "@/lib/practice/profile";
 import { updateMissedQuestionProgress } from "@/lib/practice/missed";
-import { generateCoachSummary } from "@/lib/practice/coach";
+import { generateCoachSummaryWithOpenAI } from "@/lib/practice/coach";
 import { DAILY_GOAL_XP_DEFAULT } from "@/lib/practice/types";
 import { ASSESSMENT_CATEGORIES, type AssessmentCategory } from "@/lib/assessment/types";
 
@@ -139,7 +139,7 @@ async function finalizeSessionAndProgress(sessionId: string, userId: string) {
     .map((row) => String((Array.isArray(row.question) ? row.question[0] : row.question)?.subtopic || ""))
     .filter((value) => value.length > 0);
 
-  const coach = generateCoachSummary({
+  const coach = await generateCoachSummaryWithOpenAI({
     correctCount,
     totalQuestions,
     strongestDiscipline,
