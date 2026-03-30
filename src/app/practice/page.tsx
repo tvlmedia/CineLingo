@@ -128,7 +128,7 @@ export default async function PracticePage({
 
   const { data: session } = await supabase
     .from("practice_sessions")
-    .select("id, status, total_questions")
+    .select("id, status, total_questions, source")
     .eq("id", sessionId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -190,11 +190,14 @@ export default async function PracticePage({
       <Container>
         <div className="mx-auto max-w-4xl">
           <section className="rounded-2xl border border-border bg-[#16171a] p-6 md:p-7">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-muted">Daily Practice</p>
-                <h1 className="mt-1 text-3xl font-semibold md:text-4xl">Cinematography Drill</h1>
-              </div>
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-muted">Daily Practice</p>
+              <h1 className="mt-1 text-3xl font-semibold md:text-4xl">Cinematography Drill</h1>
+              <p className="mt-1 text-xs text-muted">
+                Source: {String(session.source || "") === "daily_ai" ? "AI-generated" : "Question bank"}
+              </p>
+            </div>
               <Link
                 href="/dashboard"
                 className="rounded-xl border border-border bg-[#1a1b1f] px-3 py-2 text-sm font-semibold transition hover:bg-[#22252b]"

@@ -40,6 +40,19 @@ function readOpenAIText(payload: OpenAIResponseOutput): string {
   return "";
 }
 
+function extractJsonBlob(text: string): string {
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced && fenced[1]) {
+    return fenced[1].trim();
+  }
+  const firstBrace = text.indexOf("{");
+  const lastBrace = text.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    return text.slice(firstBrace, lastBrace + 1);
+  }
+  return text.trim();
+}
+
 function normalizeDifficulty(value: string, accuracy: number): "foundation" | "core" | "advanced" {
   if (value === "foundation" || value === "core" || value === "advanced") return value;
   if (accuracy < 0.45) return "foundation";
@@ -59,7 +72,7 @@ function normalizeRoleRelevance(value: unknown): string[] {
 function parseGeneratedQuestions(text: string, targetCount: number, accuracy: number): PracticeQuestion[] {
   let raw: unknown;
   try {
-    raw = JSON.parse(text);
+    raw = JSON.parse(extractJsonBlob(text));
   } catch {
     return [];
   }

@@ -1576,3 +1576,18 @@ add column if not exists coach_next_focus text;
 
 create index if not exists practice_sessions_user_lesson_date_idx
 on public.practice_sessions (user_id, lesson_date desc);
+
+-- ============================================================================
+-- AI-generated daily questions insert policy
+-- Allows authenticated users to store non-active, session-generated questions
+-- ============================================================================
+
+drop policy if exists "Authenticated users can insert ai daily questions" on public.assessment_questions;
+create policy "Authenticated users can insert ai daily questions"
+on public.assessment_questions
+for insert
+with check (
+  auth.role() = 'authenticated'
+  and is_active = false
+  and key like 'ai-daily-%'
+);
