@@ -161,11 +161,17 @@ export default async function DashboardPage({
   const streak = Number(todayProgress?.current_streak || 0);
   const dailyGoalTarget = Number(todayProgress?.goal_target_xp || 50);
   const dailyGoalPct = Math.max(0, Math.min(100, Math.round((xpToday / dailyGoalTarget) * 100)));
-  const weeklyXp = (weeklyRows || []).reduce((sum, row) => sum + Number(row.xp_earned || 0), 0);
+  const weeklyXp = (weeklyRows || []).reduce(
+    (sum: number, row: { xp_earned?: unknown }) => sum + Number(row.xp_earned || 0),
+    0
+  );
 
   const hasInProgress = Boolean(inProgressSession?.id);
   const friendsCount = socialRows?.length || 0;
-  const totalDisciplineXp = disciplineList.reduce((sum, item) => sum + item.xp, 0);
+  const totalDisciplineXp = disciplineList.reduce(
+    (sum: number, item: (typeof disciplineList)[number]) => sum + item.xp,
+    0
+  );
   const openMistakes = Number(openMistakesCount || 0);
   const isAdmin = String(user.email || "").toLowerCase() === "info@tvlmedia.nl";
   const weakSubtopics = Array.isArray(learningProfile?.weak_subtopics)

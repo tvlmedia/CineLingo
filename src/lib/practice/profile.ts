@@ -115,7 +115,10 @@ export async function buildLearningProfile(supabase: any, userId: string): Promi
   const recentAccuracyRows = effectiveStats.filter((row) => row.total > 0);
   const recentAccuracy =
     recentAccuracyRows.length > 0
-      ? recentAccuracyRows.reduce((sum, row) => sum + row.ratio, 0) / recentAccuracyRows.length
+      ? recentAccuracyRows.reduce(
+          (sum: number, row: DisciplineStat) => sum + row.ratio,
+          0
+        ) / recentAccuracyRows.length
       : 0;
 
   return {

@@ -2,6 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 
+type JoinedPromptRaw =
+  | {
+      prompt?: unknown;
+    }
+  | Array<{
+      prompt?: unknown;
+    }>
+  | null;
+
+function extractPrompt(value: JoinedPromptRaw): string {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw || typeof raw !== "object") return "";
+  return typeof raw.prompt === "string" ? raw.prompt : "";
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await requireUser();
@@ -53,10 +68,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (!existing) {
-      const prompt =
-        typeof row.question === "object" && row.question && !Array.isArray(row.question)
-          ? String((row.question as { prompt?: unknown }).prompt || "")
-          : "";
+      const prompt = extractPrompt((row as { question?: JoinedPromptRaw } | null)?.question ?? null);
 
       const { error: insertError } = await supabase.from("reports").insert({
         user_id: user.id,
@@ -76,4 +88,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "unknown_error" }, { status: 500 });
   }
 }
-

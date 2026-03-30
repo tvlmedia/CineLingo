@@ -8,8 +8,44 @@ import { Container } from "@/components/ui";
 import { startDailyPractice } from "@/app/practice/actions";
 import { reportPracticeQuestion } from "./actions";
 
+type JoinedQuestionRaw =
+  | {
+      id?: unknown;
+      category?: unknown;
+      prompt?: unknown;
+      options?: unknown;
+      explanation?: unknown;
+    }
+  | Array<{
+      id?: unknown;
+      category?: unknown;
+      prompt?: unknown;
+      options?: unknown;
+      explanation?: unknown;
+    }>
+  | null;
+
 function isAssessmentCategory(value: string): value is AssessmentCategory {
   return (ASSESSMENT_CATEGORIES as readonly string[]).includes(value);
+}
+
+function normalizeJoinedQuestion(value: JoinedQuestionRaw): {
+  id: string;
+  category: string;
+  prompt: string;
+  options: unknown;
+  explanation: string;
+} | null {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (!raw || typeof raw !== "object") return null;
+
+  const id = typeof raw.id === "string" ? raw.id : "";
+  const category = typeof raw.category === "string" ? raw.category : "";
+  const prompt = typeof raw.prompt === "string" ? raw.prompt : "";
+  const explanation = typeof raw.explanation === "string" ? raw.explanation : "";
+
+  if (!id || !category || !prompt || !explanation) return null;
+  return { id, category, prompt, options: raw.options, explanation };
 }
 
 function weakestCategories(rows: Array<{ category: string; total: number; correct: number }>): string[] {
@@ -75,24 +111,16 @@ export default async function PracticeResultsPage({
 
   const reviewRows = (answers || [])
     .map((row) => {
-      const question = row.question as
-        | {
-            id?: unknown;
-            category?: unknown;
-            prompt?: unknown;
-            options?: unknown;
-            explanation?: unknown;
-          }
-        | null;
+      const question = normalizeJoinedQuestion((row as { question?: JoinedQuestionRaw } | null)?.question ?? null);
+      if (!question) return null;
 
-      const questionId = String(question?.id || "");
-      if (!questionId) return null;
-      const category = String(question?.category || "");
+      const questionId = question.id;
+      const category = question.category;
       if (!isAssessmentCategory(category)) return null;
 
-      const prompt = String(question?.prompt || "");
-      const explanation = String(question?.explanation || "");
-      const options = parseQuestionOptions(question?.options);
+      const prompt = question.prompt;
+      const explanation = question.explanation;
+      const options = parseQuestionOptions(question.options);
 
       if (!prompt || !explanation || !options) return null;
 
