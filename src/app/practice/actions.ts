@@ -9,6 +9,7 @@ import {
 } from "@/lib/practice/engine";
 import { buildAdaptiveDailyLesson } from "@/lib/practice/lesson-generator";
 import { buildLearningProfile, saveLearningProfile } from "@/lib/practice/profile";
+import { generateAIDailyQuestions } from "@/lib/practice/ai-generator";
 import { DAILY_GOAL_XP_DEFAULT } from "@/lib/practice/types";
 
 export async function startDailyPractice(formData: FormData): Promise<void> {
@@ -83,18 +84,80 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
     .map((row) => String(row.question_id || ""))
     .filter((value) => value.length > 0);
 
-  const { questions: selected, plan } = buildAdaptiveDailyLesson(
-    questions,
+  let selected = [] as NonNullable<ReturnType<typeof toPracticeQuestion>>[];
+  let plan: Record<string, unknown> = {};
+  let source = "daily";
+
+  const aiQuestions = await generateAIDailyQuestions({
     learningProfile,
-    missedQuestionIds,
-    10
-  );
+    targetCount: 10,
+  });
+
+  if (aiQuestions.length === 10) {
+    const aiRows = aiQuestions.map((question) => ({
+      key: question.key,
+      category: question.category,
+      subtopic: question.subtopic,
+      difficulty: question.difficulty,
+      question_type: question.questionType,
+      role_relevance: question.roleRelevance,
+      prompt: question.prompt,
+      options: question.options,
+      explanation: question.explanation,
+      is_active: false,
+    }));
+
+    const { data: insertedAI, error: insertAIError } = await supabase
+      .from("assessment_questions")
+      .insert(aiRows)
+      .select("id, key, category, subtopic, difficulty, question_type, role_relevance, prompt, options, explanation");
+
+    if (!insertAIError && insertedAI && insertedAI.length === 10) {
+      selected = insertedAI
+        .map((row) =>
+          toPracticeQuestion({
+            id: String(row.id),
+            key: String(row.key),
+            category: String(row.category),
+            subtopic: String(row.subtopic || ""),
+            difficulty: String(row.difficulty || ""),
+            question_type: String(row.question_type || ""),
+            role_relevance: row.role_relevance,
+            prompt: String(row.prompt),
+            options: row.options,
+            explanation: String(row.explanation),
+          })
+        )
+        .filter((row): row is NonNullable<typeof row> => Boolean(row));
+    }
+  }
+
+  if (selected.length !== 10) {
+    const fallback = buildAdaptiveDailyLesson(
+      questions,
+      learningProfile,
+      missedQuestionIds,
+      10
+    );
+    selected = fallback.questions;
+    plan = fallback.plan;
+  } else {
+    source = "daily_ai";
+    plan = {
+      generator: "openai",
+      targetCount: 10,
+      weakPrimary: learningProfile.weakestDisciplines[0] || null,
+      weakSecondary: learningProfile.weakestDisciplines[1] || null,
+      weakSubtopics: learningProfile.weakSubtopics.slice(0, 4),
+      selectedQuestionIds: selected.map((q) => q.id),
+    };
+  }
 
   const { data: session, error: sessionError } = await supabase
     .from("practice_sessions")
     .insert({
       user_id: user.id,
-      source: "daily",
+      source,
       status: "in_progress",
       total_questions: selected.length,
       correct_count: 0,
