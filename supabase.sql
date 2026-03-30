@@ -1209,3 +1209,224 @@ on public.friendships (user_a);
 
 create index if not exists friendships_user_b_idx
 on public.friendships (user_b);
+
+-- ============================================================================
+-- Daily Practice / XP / Streak v1
+-- ============================================================================
+
+create table if not exists public.practice_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  source text not null default 'daily',
+  status text not null default 'in_progress',
+  total_questions integer not null default 0,
+  correct_count integer not null default 0,
+  xp_earned integer not null default 0,
+  goal_target_xp integer not null default 50,
+  started_at timestamptz not null default now(),
+  completed_at timestamptz,
+  constraint practice_sessions_status_check check (status in ('in_progress', 'completed', 'abandoned')),
+  constraint practice_sessions_counts_check check (
+    total_questions >= 0 and correct_count >= 0 and correct_count <= total_questions and xp_earned >= 0
+  )
+);
+
+create index if not exists practice_sessions_user_status_idx
+on public.practice_sessions (user_id, status, started_at desc);
+
+create table if not exists public.practice_answers (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references public.practice_sessions(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  question_id uuid not null references public.assessment_questions(id) on delete cascade,
+  question_order integer not null,
+  selected_option_id text,
+  options_order jsonb not null,
+  is_correct boolean,
+  answered_at timestamptz,
+  created_at timestamptz not null default now(),
+  constraint practice_answers_unique_question_order unique (session_id, question_order)
+);
+
+create index if not exists practice_answers_session_idx
+on public.practice_answers (session_id, question_order);
+
+create index if not exists practice_answers_user_idx
+on public.practice_answers (user_id, session_id);
+
+create table if not exists public.user_daily_progress (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  day_date date not null,
+  xp_earned integer not null default 0,
+  sessions_completed integer not null default 0,
+  current_streak integer not null default 0,
+  goal_target_xp integer not null default 50,
+  goal_met boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint user_daily_progress_unique_day unique (user_id, day_date),
+  constraint user_daily_progress_non_negative check (
+    xp_earned >= 0 and sessions_completed >= 0 and current_streak >= 0 and goal_target_xp > 0
+  )
+);
+
+create index if not exists user_daily_progress_user_day_idx
+on public.user_daily_progress (user_id, day_date desc);
+
+create table if not exists public.user_discipline_progress (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  category text not null,
+  xp_earned integer not null default 0,
+  total_answered integer not null default 0,
+  total_correct integer not null default 0,
+  mastery_status text not null default 'Emerging',
+  last_practiced_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint user_discipline_progress_unique unique (user_id, category),
+  constraint user_discipline_progress_counts_check check (
+    xp_earned >= 0 and total_answered >= 0 and total_correct >= 0 and total_correct <= total_answered
+  ),
+  constraint user_discipline_progress_mastery_check check (
+    mastery_status in ('Emerging', 'Developing', 'Proficient', 'Mastered')
+  )
+);
+
+create index if not exists user_discipline_progress_user_idx
+on public.user_discipline_progress (user_id);
+
+create index if not exists user_discipline_progress_user_category_idx
+on public.user_discipline_progress (user_id, category);
+
+alter table public.practice_sessions enable row level security;
+alter table public.practice_answers enable row level security;
+alter table public.user_daily_progress enable row level security;
+alter table public.user_discipline_progress enable row level security;
+
+drop policy if exists "Users can view own practice sessions" on public.practice_sessions;
+drop policy if exists "Users can insert own practice sessions" on public.practice_sessions;
+drop policy if exists "Users can update own practice sessions" on public.practice_sessions;
+
+create policy "Users can view own practice sessions"
+on public.practice_sessions
+for select
+using (auth.uid() = user_id);
+
+create policy "Users can insert own practice sessions"
+on public.practice_sessions
+for insert
+with check (auth.uid() = user_id);
+
+create policy "Users can update own practice sessions"
+on public.practice_sessions
+for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+drop policy if exists "Users can view own practice answers" on public.practice_answers;
+drop policy if exists "Users can insert own practice answers" on public.practice_answers;
+drop policy if exists "Users can update own practice answers" on public.practice_answers;
+
+create policy "Users can view own practice answers"
+on public.practice_answers
+for select
+using (auth.uid() = user_id);
+
+create policy "Users can insert own practice answers"
+on public.practice_answers
+for insert
+with check (auth.uid() = user_id);
+
+create policy "Users can update own practice answers"
+on public.practice_answers
+for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+drop policy if exists "Users can view own daily progress" on public.user_daily_progress;
+drop policy if exists "Users can insert own daily progress" on public.user_daily_progress;
+drop policy if exists "Users can update own daily progress" on public.user_daily_progress;
+
+create policy "Users can view own daily progress"
+on public.user_daily_progress
+for select
+using (auth.uid() = user_id);
+
+create policy "Users can insert own daily progress"
+on public.user_daily_progress
+for insert
+with check (auth.uid() = user_id);
+
+create policy "Users can update own daily progress"
+on public.user_daily_progress
+for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+drop policy if exists "Users can view own discipline progress" on public.user_discipline_progress;
+drop policy if exists "Users can insert own discipline progress" on public.user_discipline_progress;
+drop policy if exists "Users can update own discipline progress" on public.user_discipline_progress;
+
+create policy "Users can view own discipline progress"
+on public.user_discipline_progress
+for select
+using (auth.uid() = user_id);
+
+create policy "Users can insert own discipline progress"
+on public.user_discipline_progress
+for insert
+with check (auth.uid() = user_id);
+
+create policy "Users can update own discipline progress"
+on public.user_discipline_progress
+for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+-- ============================================================================
+-- Review Mistakes tracker
+-- ============================================================================
+
+create table if not exists public.user_missed_questions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  question_id uuid not null references public.assessment_questions(id) on delete cascade,
+  miss_count integer not null default 0,
+  correct_review_count integer not null default 0,
+  status text not null default 'open',
+  first_missed_at timestamptz,
+  last_missed_at timestamptz,
+  last_reviewed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint user_missed_questions_unique unique (user_id, question_id),
+  constraint user_missed_questions_counts_check check (miss_count >= 0 and correct_review_count >= 0),
+  constraint user_missed_questions_status_check check (status in ('open', 'mastered'))
+);
+
+create index if not exists user_missed_questions_user_status_idx
+on public.user_missed_questions (user_id, status, last_missed_at desc);
+
+alter table public.user_missed_questions enable row level security;
+
+drop policy if exists "Users can view own missed questions" on public.user_missed_questions;
+drop policy if exists "Users can insert own missed questions" on public.user_missed_questions;
+drop policy if exists "Users can update own missed questions" on public.user_missed_questions;
+
+create policy "Users can view own missed questions"
+on public.user_missed_questions
+for select
+using (auth.uid() = user_id);
+
+create policy "Users can insert own missed questions"
+on public.user_missed_questions
+for insert
+with check (auth.uid() = user_id);
+
+create policy "Users can update own missed questions"
+on public.user_missed_questions
+for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
