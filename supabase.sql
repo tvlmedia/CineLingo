@@ -309,6 +309,18 @@ on public.reports
 for select
 using (auth.uid() = user_id);
 
+drop policy if exists "Owner can view all reports" on public.reports;
+create policy "Owner can view all reports"
+on public.reports
+for select
+using (auth.jwt() ->> 'email' = 'info@tvlmedia.nl');
+
+drop policy if exists "Owner can delete reports" on public.reports;
+create policy "Owner can delete reports"
+on public.reports
+for delete
+using (auth.jwt() ->> 'email' = 'info@tvlmedia.nl');
+
 create table if not exists public.assessment_questions (
   id uuid primary key default gen_random_uuid(),
   key text unique not null,

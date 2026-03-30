@@ -167,6 +167,7 @@ export default async function DashboardPage({
   const friendsCount = socialRows?.length || 0;
   const totalDisciplineXp = disciplineList.reduce((sum, item) => sum + item.xp, 0);
   const openMistakes = Number(openMistakesCount || 0);
+  const isAdmin = String(user.email || "").toLowerCase() === "info@tvlmedia.nl";
   const weakSubtopics = Array.isArray(learningProfile?.weak_subtopics)
     ? learningProfile.weak_subtopics.filter((entry): entry is string => typeof entry === "string").slice(0, 3)
     : [];
@@ -216,6 +217,14 @@ export default async function DashboardPage({
               >
                 Profile
               </Link>
+              {isAdmin ? (
+                <Link
+                  href="/admin/questions"
+                  className="rounded-xl border border-border bg-[#17181c] px-3 py-2 text-sm font-semibold transition hover:bg-[#212329]"
+                >
+                  Quality
+                </Link>
+              ) : null}
               <form action="/logout" method="post">
                 <button className="rounded-xl border border-border bg-[#17181c] px-3 py-2 text-sm font-semibold transition hover:bg-[#212329]">
                   Log out
