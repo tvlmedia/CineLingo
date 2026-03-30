@@ -1190,3 +1190,22 @@ set
   explanation = excluded.explanation,
   is_active = excluded.is_active,
   updated_at = now();
+
+-- Social layer extension: collaboration-ready profile metadata and friend graph indexes
+alter table public.profiles
+add column if not exists open_to_collaborate boolean not null default false;
+
+alter table public.profiles
+add column if not exists collaboration_note text not null default '';
+
+create index if not exists profiles_role_focus_idx
+on public.profiles (role_focus);
+
+create index if not exists profiles_experience_level_idx
+on public.profiles (experience_level);
+
+create index if not exists friendships_user_a_idx
+on public.friendships (user_a);
+
+create index if not exists friendships_user_b_idx
+on public.friendships (user_b);
