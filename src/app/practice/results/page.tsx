@@ -6,6 +6,7 @@ import { parseQuestionOptions } from "@/lib/assessment/engine";
 import { ASSESSMENT_CATEGORIES, type AssessmentCategory } from "@/lib/assessment/types";
 import { Container } from "@/components/ui";
 import { startDailyPractice } from "@/app/practice/actions";
+import { reportPracticeQuestion } from "./actions";
 
 function isAssessmentCategory(value: string): value is AssessmentCategory {
   return (ASSESSMENT_CATEGORIES as readonly string[]).includes(value);
@@ -35,13 +36,15 @@ function strongestCategory(rows: Array<{ category: string; total: number; correc
 export default async function PracticeResultsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ session?: string }>;
+  searchParams?: Promise<{ session?: string; reported?: string; error?: string }>;
 }) {
   const user = await requireUser();
   const supabase = await createClient();
   const params = (await searchParams) || {};
 
   const sessionId = String(params.session || "").trim();
+  const reported = String(params.reported || "") === "1";
+  const reportError = String(params.error || "") === "report_failed";
   if (!sessionId) {
     redirect("/dashboard");
   }
@@ -64,7 +67,7 @@ export default async function PracticeResultsPage({
   const { data: answers } = await supabase
     .from("practice_answers")
     .select(
-      "id, question_order, selected_option_id, is_correct, question:assessment_questions(category, prompt, options, explanation)"
+      "id, question_order, selected_option_id, is_correct, question:assessment_questions(id, category, prompt, options, explanation)"
     )
     .eq("session_id", sessionId)
     .eq("user_id", user.id)
@@ -74,6 +77,7 @@ export default async function PracticeResultsPage({
     .map((row) => {
       const question = row.question as
         | {
+            id?: unknown;
             category?: unknown;
             prompt?: unknown;
             options?: unknown;
@@ -81,6 +85,8 @@ export default async function PracticeResultsPage({
           }
         | null;
 
+      const questionId = String(question?.id || "");
+      if (!questionId) return null;
       const category = String(question?.category || "");
       if (!isAssessmentCategory(category)) return null;
 
@@ -95,6 +101,7 @@ export default async function PracticeResultsPage({
       const correct = options.find((option) => option.isCorrect);
 
       return {
+        questionId,
         questionOrder: Number(row.question_order || 0),
         category,
         prompt,
@@ -143,6 +150,16 @@ export default async function PracticeResultsPage({
     <main className="min-h-screen py-8 md:py-10">
       <Container>
         <div className="mx-auto max-w-4xl space-y-6">
+          {reported ? (
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+              Thanks. We flagged this question for quality review.
+            </div>
+          ) : null}
+          {reportError ? (
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              Could not submit your report. Try again.
+            </div>
+          ) : null}
           <section className="rounded-2xl border border-border bg-[#16171a] p-6 md:p-7">
             <p className="text-xs uppercase tracking-[0.2em] text-muted">Practice summary</p>
             <h1 className="mt-1 text-3xl font-semibold md:text-4xl">Daily Session Complete</h1>
@@ -238,6 +255,22 @@ export default async function PracticeResultsPage({
                       Correct answer: <span className="font-semibold">{item.correctText}</span>
                     </p>
                     <p className="mt-2 text-sm text-muted">{item.explanation}</p>
+                    <form action={reportPracticeQuestion} className="mt-3">
+                      <input type="hidden" name="sessionId" value={sessionId} />
+                      <input type="hidden" name="questionId" value={item.questionId} />
+                      <input type="hidden" name="questionOrder" value={item.questionOrder} />
+                      <input
+                        type="hidden"
+                        name="details"
+                        value={`Prompt: ${item.prompt}\nYour answer: ${item.selectedText}\nMarked correct: ${item.correctText}`}
+                      />
+                      <button
+                        type="submit"
+                        className="rounded-lg border border-border bg-[#1a1b1f] px-3 py-1.5 text-xs font-semibold text-muted transition hover:bg-[#22252b]"
+                      >
+                        Mark as ambiguous
+                      </button>
+                    </form>
                   </div>
                 ))}
               </div>
