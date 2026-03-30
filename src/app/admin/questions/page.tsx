@@ -5,6 +5,7 @@ import { requireAdminUser } from "@/lib/admin";
 import {
   deactivateQuestion,
   reactivateQuestion,
+  rewriteQuestionWithAI,
   resolveQuestionReports,
 } from "./actions";
 
@@ -148,6 +149,12 @@ export default async function AdminQuestionQueuePage({
                     ) : null}
 
                     <div className="mt-3 flex flex-wrap gap-2">
+                      <form action={rewriteQuestionWithAI}>
+                        <input type="hidden" name="questionId" value={item.question.id} />
+                        <button className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/20">
+                          Rewrite with AI
+                        </button>
+                      </form>
                       {item.question.is_active ? (
                         <form action={deactivateQuestion}>
                           <input type="hidden" name="questionId" value={item.question.id} />
@@ -181,4 +188,3 @@ export default async function AdminQuestionQueuePage({
     </main>
   );
 }
-
