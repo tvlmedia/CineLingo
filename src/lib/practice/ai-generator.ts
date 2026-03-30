@@ -23,6 +23,19 @@ type OpenAIResponseOutput = {
   }>;
 };
 
+const AMBIGUOUS_TERMS = [
+  "best",
+  "most",
+  "typically",
+  "generally",
+  "usually",
+  "principal advantage",
+  "which approach",
+  "most directly",
+  "most commonly",
+  "i guess",
+] as const;
+
 function isAssessmentCategory(value: string): value is AssessmentCategory {
   return (ASSESSMENT_CATEGORIES as readonly string[]).includes(value);
 }
@@ -61,12 +74,17 @@ function normalizeDifficulty(value: string, accuracy: number): "foundation" | "c
 }
 
 function normalizeQuestionType(value: string): "technical" | "interpretive" {
-  return value === "interpretive" ? "interpretive" : "technical";
+  return value === "technical" ? "technical" : "technical";
 }
 
 function normalizeRoleRelevance(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is string => typeof entry === "string").slice(0, 4);
+}
+
+function hasAmbiguousLanguage(text: string): boolean {
+  const normalized = text.toLowerCase();
+  return AMBIGUOUS_TERMS.some((term) => normalized.includes(term));
 }
 
 function parseGeneratedQuestions(text: string, targetCount: number, accuracy: number): PracticeQuestion[] {
@@ -92,6 +110,7 @@ function parseGeneratedQuestions(text: string, targetCount: number, accuracy: nu
     const subtopic = typeof q.subtopic === "string" ? q.subtopic.trim() : "";
 
     if (!isAssessmentCategory(category) || !prompt || !explanation) continue;
+    if (hasAmbiguousLanguage(prompt) || hasAmbiguousLanguage(explanation)) continue;
     if (!Array.isArray(q.choices) || q.choices.length !== 4) continue;
     if (typeof q.correctIndex !== "number" || q.correctIndex < 0 || q.correctIndex > 3) continue;
 
@@ -102,6 +121,7 @@ function parseGeneratedQuestions(text: string, targetCount: number, accuracy: nu
 
     const uniqueChoices = new Set(choiceTexts.map((entry) => entry.toLowerCase()));
     if (uniqueChoices.size !== 4) continue;
+    if (choiceTexts.some((entry) => hasAmbiguousLanguage(entry))) continue;
 
     const idBase = crypto.randomUUID().slice(0, 8);
     const options = choiceTexts.map((text, index) => ({
@@ -148,8 +168,12 @@ export async function generateAIDailyQuestions(input: {
     '{ "questions": [{ "category": "...", "subtopic": "...", "difficulty": "foundation|core|advanced", "questionType": "technical|interpretive", "roleRelevance": ["dop"], "prompt": "...", "choices": ["...","...","...","..."], "correctIndex": 0, "explanation": "..." }] }',
     `Generate exactly ${targetCount} questions.`,
     `Allowed categories only: ${ASSESSMENT_CATEGORIES.join(", ")}.`,
-    "All choices must be plausible and unique. Exactly one correct choice.",
-    "Questions must be production-practical, concise, and advanced enough for professional filmmakers.",
+    "CRITICAL: only produce objective, factual, technically verifiable questions with one unambiguous correct answer.",
+    "Do not produce taste/style/tradeoff questions where multiple answers can be valid.",
+    "Avoid wording like: best, most, typically, generally, usually, principal advantage, which approach.",
+    "All choices must be unique. Exactly one correct choice. The other 3 must be clearly false on factual grounds.",
+    "Question type must be technical.",
+    "Questions must be concise and set-practical for professional filmmakers.",
     `User role focus: ${learningProfile.roleFocus || "not specified"}.`,
     `Weakest disciplines (prioritize): ${weakest.join(", ") || "none"}.`,
     `Strongest disciplines (include 1-2 stretch items): ${strongest.join(", ") || "none"}.`,
