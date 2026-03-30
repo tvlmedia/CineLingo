@@ -232,30 +232,39 @@ export default async function DashboardPage({
             Short, focused cinematography practice designed for daily momentum, stronger recall, and set-ready decisions.
           </p>
 
-          <div className="mt-6 flex flex-wrap gap-3">
-            <form action={startDailyPractice}>
-              <button className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-[#13100a]">
+          <div className="relative z-20 mt-6 flex flex-wrap gap-3 pointer-events-auto">
+            <form action={startDailyPractice} className="pointer-events-auto">
+              <button
+                type="submit"
+                className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-[#13100a]"
+              >
                 {hasInProgress ? "Continue Daily Practice" : "Start Daily Practice"}
               </button>
             </form>
             <Link
               href="/practice/review"
-              className="rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]"
+              className="pointer-events-auto rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]"
             >
               Review mistakes {openMistakes > 0 ? `(${openMistakes})` : ""}
             </Link>
 
             {hasInProgress ? (
-              <form action={startDailyPractice}>
+              <form action={startDailyPractice} className="pointer-events-auto">
                 <input type="hidden" name="forceNew" value="1" />
-                <button className="rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]">
+                <button
+                  type="submit"
+                  className="rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]"
+                >
                   Start fresh session
                 </button>
               </form>
             ) : (
-              <form action={startAssessment}>
+              <form action={startAssessment} className="pointer-events-auto">
                 <input type="hidden" name="forceNew" value="1" />
-                <button className="rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]">
+                <button
+                  type="submit"
+                  className="rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]"
+                >
                   Retake assessment
                 </button>
               </form>
