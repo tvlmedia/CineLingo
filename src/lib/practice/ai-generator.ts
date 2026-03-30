@@ -154,12 +154,15 @@ function parseGeneratedQuestions(text: string, targetCount: number, accuracy: nu
 export async function generateAIDailyQuestions(input: {
   learningProfile: LearningProfile;
   targetCount: number;
+  timeoutMs?: number;
 }): Promise<PracticeQuestion[]> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return [];
 
   const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
   const { learningProfile, targetCount } = input;
+  const timeoutMs =
+    typeof input.timeoutMs === "number" && input.timeoutMs > 0 ? Math.floor(input.timeoutMs) : 2400;
   const weakest = learningProfile.weakestDisciplines.slice(0, 2);
   const strongest = learningProfile.strongestDisciplines.slice(0, 2);
   const accuracy = Number(learningProfile.recentAccuracy || 0);
@@ -187,7 +190,7 @@ export async function generateAIDailyQuestions(input: {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     let response: Response;
     try {
       response = await fetch("https://api.openai.com/v1/responses", {

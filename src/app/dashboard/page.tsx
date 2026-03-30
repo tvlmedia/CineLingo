@@ -183,13 +183,17 @@ export default async function DashboardPage({
       <Container>
         {error ? (
           <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-            {error === "practice_abandon_failed"
-              ? "Could not close your previous session. Try again."
-              : error === "practice_start_failed"
-                ? "Could not start a new practice session. Try again."
-                : error === "practice_questions_unavailable"
-                  ? "No valid questions available right now."
-                  : "Something went wrong while starting practice."}
+              {error === "practice_abandon_failed"
+                ? "Could not close your previous session. Try again."
+                : error === "practice_start_failed"
+                  ? "Could not start a new practice session. Try again."
+                  : error === "practice_ai_key_missing"
+                    ? "OpenAI key is missing on the server. Add OPENAI_API_KEY in Vercel."
+                    : error === "practice_ai_unavailable"
+                      ? "AI session could not generate enough quality questions right now. Try again."
+                    : error === "practice_questions_unavailable"
+                      ? "No valid questions available right now."
+                      : "Something went wrong while starting practice."}
           </div>
         ) : null}
         <header className="mb-7 rounded-2xl border border-border bg-[#151619] px-6 py-5">
@@ -249,11 +253,22 @@ export default async function DashboardPage({
 
           <div className="relative z-20 mt-6 flex flex-wrap gap-3 pointer-events-auto">
             <form action={startDailyPractice} className="pointer-events-auto">
+              <input type="hidden" name="mode" value="adaptive" />
               <button
                 type="submit"
                 className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-[#13100a]"
               >
                 {hasInProgress ? "Continue Daily Practice" : "Start Daily Practice"}
+              </button>
+            </form>
+            <form action={startDailyPractice} className="pointer-events-auto">
+              <input type="hidden" name="forceNew" value="1" />
+              <input type="hidden" name="mode" value="ai_only" />
+              <button
+                type="submit"
+                className="rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]"
+              >
+                Start AI Coach Session
               </button>
             </form>
             <Link
@@ -266,11 +281,12 @@ export default async function DashboardPage({
             {hasInProgress ? (
               <form action={startDailyPractice} className="pointer-events-auto">
                 <input type="hidden" name="forceNew" value="1" />
+                <input type="hidden" name="mode" value="adaptive" />
                 <button
                   type="submit"
                   className="rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]"
                 >
-                  Start fresh session
+                  Start fresh adaptive
                 </button>
               </form>
             ) : (

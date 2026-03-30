@@ -195,7 +195,12 @@ export default async function PracticePage({
               <p className="text-xs uppercase tracking-[0.2em] text-muted">Daily Practice</p>
               <h1 className="mt-1 text-3xl font-semibold md:text-4xl">Cinematography Drill</h1>
               <p className="mt-1 text-xs text-muted">
-                Source: {String(session.source || "") === "daily_ai" ? "AI-generated" : "Question bank"}
+                Source:{" "}
+                {String(session.source || "") === "daily_ai"
+                  ? "AI-generated"
+                  : String(session.source || "") === "daily_ai_hybrid"
+                    ? "AI + question bank"
+                    : "Question bank"}
               </p>
             </div>
               <Link

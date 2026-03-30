@@ -4,15 +4,16 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { ASSESSMENT_CATEGORIES, type AssessmentCategory } from "@/lib/assessment/types";
-import {
-  buildShuffledOptionOrder,
-  toPracticeQuestion,
-} from "@/lib/practice/engine";
+import { buildShuffledOptionOrder, toPracticeQuestion } from "@/lib/practice/engine";
 import { buildAdaptiveDailyLesson } from "@/lib/practice/lesson-generator";
 import { buildLearningProfile, saveLearningProfile, type LearningProfile } from "@/lib/practice/profile";
 import { generateAIDailyQuestions } from "@/lib/practice/ai-generator";
 import { loadBlockedQuestionIdsForPractice } from "@/lib/practice/question-quality";
-import { DAILY_GOAL_XP_DEFAULT } from "@/lib/practice/types";
+import {
+  DAILY_GOAL_XP_DEFAULT,
+  DAILY_PRACTICE_QUESTION_COUNT,
+  type PracticeQuestion,
+} from "@/lib/practice/types";
 
 function isAssessmentCategory(value: string): value is AssessmentCategory {
   return (ASSESSMENT_CATEGORIES as readonly string[]).includes(value);
@@ -20,7 +21,10 @@ function isAssessmentCategory(value: string): value is AssessmentCategory {
 
 function normalizeProfileCategories(value: unknown): AssessmentCategory[] {
   if (!Array.isArray(value)) return [];
-  return value.filter((entry): entry is AssessmentCategory => typeof entry === "string" && isAssessmentCategory(entry));
+  return value.filter(
+    (entry): entry is AssessmentCategory =>
+      typeof entry === "string" && isAssessmentCategory(entry)
+  );
 }
 
 function normalizeStringList(value: unknown): string[] {
@@ -28,10 +32,56 @@ function normalizeStringList(value: unknown): string[] {
   return value.filter((entry): entry is string => typeof entry === "string");
 }
 
+type PracticeStartMode = "adaptive" | "ai_only" | "bank_only";
+
+function parsePracticeStartMode(value: unknown): PracticeStartMode {
+  const raw = String(value || "").trim();
+  if (raw === "ai_only") return "ai_only";
+  if (raw === "bank_only") return "bank_only";
+  return "adaptive";
+}
+
+type RawQuestionRow = {
+  id: unknown;
+  key: unknown;
+  category: unknown;
+  subtopic: unknown;
+  difficulty: unknown;
+  question_type: unknown;
+  role_relevance: unknown;
+  prompt: unknown;
+  options: unknown;
+  explanation: unknown;
+};
+
+function mapRawRowsToPracticeQuestions(rows: RawQuestionRow[]): PracticeQuestion[] {
+  return rows
+    .map((row) =>
+      toPracticeQuestion({
+        id: String(row.id),
+        key: String(row.key),
+        category: String(row.category),
+        subtopic: String(row.subtopic || ""),
+        difficulty: String(row.difficulty || ""),
+        question_type: String(row.question_type || ""),
+        role_relevance: row.role_relevance,
+        prompt: String(row.prompt),
+        options: row.options,
+        explanation: String(row.explanation),
+      })
+    )
+    .filter((row): row is PracticeQuestion => Boolean(row));
+}
+
 export async function startDailyPractice(formData: FormData): Promise<void> {
   const user = await requireUser();
   const supabase = await createClient();
   const forceNew = String(formData.get("forceNew") || "") === "1";
+  const mode = parsePracticeStartMode(formData.get("mode"));
+
+  if (mode === "ai_only" && !process.env.OPENAI_API_KEY) {
+    redirect(`/dashboard?error=practice_ai_key_missing`);
+  }
 
   const { data: existingInProgress } = await supabase
     .from("practice_sessions")
@@ -88,6 +138,7 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
     learningProfile = await buildLearningProfile(supabase, user.id);
     await saveLearningProfile(supabase, learningProfile);
   }
+
   if (!learningProfile) {
     redirect(`/dashboard?error=practice_start_failed`);
   }
@@ -105,124 +156,160 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
     .filter((value) => value.length > 0);
   const blockedQuestionIds = await loadBlockedQuestionIdsForPractice(supabase, user.id);
 
-  let selected = [] as NonNullable<ReturnType<typeof toPracticeQuestion>>[];
-  let plan: Record<string, unknown> = {};
-  let source = "daily";
+  const bankPromise =
+    mode === "ai_only"
+      ? null
+      : supabase
+          .from("assessment_questions")
+          .select(
+            "id, key, category, subtopic, difficulty, question_type, role_relevance, prompt, options, explanation"
+          )
+          .eq("is_active", true);
 
-  const aiQuestions = await generateAIDailyQuestions({
-    learningProfile,
-    targetCount: 10,
-  });
+  const aiPromise =
+    mode === "bank_only"
+      ? null
+      : generateAIDailyQuestions({
+          learningProfile,
+          targetCount: DAILY_PRACTICE_QUESTION_COUNT,
+          timeoutMs: mode === "ai_only" ? 4500 : 2400,
+        });
 
+  let aiQuestions: PracticeQuestion[] = [];
+  let bankRows: RawQuestionRow[] = [];
+
+  if (bankPromise && aiPromise) {
+    const [aiResult, bankResult] = await Promise.all([aiPromise, bankPromise]);
+    aiQuestions = aiResult;
+    if (bankResult.error) {
+      redirect(`/dashboard?error=practice_questions_unavailable`);
+    }
+    bankRows = (bankResult.data || []) as RawQuestionRow[];
+  } else if (aiPromise) {
+    aiQuestions = await aiPromise;
+  } else if (bankPromise) {
+    const bankResult = await bankPromise;
+    if (bankResult.error) {
+      redirect(`/dashboard?error=practice_questions_unavailable`);
+    }
+    bankRows = (bankResult.data || []) as RawQuestionRow[];
+  }
+
+  const bankQuestions = mapRawRowsToPracticeQuestions(bankRows).filter(
+    (row) => !blockedQuestionIds.has(row.id)
+  );
+
+  let aiSelected: PracticeQuestion[] = [];
   if (aiQuestions.length >= 6) {
-    const aiRows = aiQuestions
+    const aiRowsToInsert = aiQuestions
       .filter((question) => !blockedQuestionIds.has(question.id))
       .map((question) => ({
-      key: question.key,
-      category: question.category,
-      subtopic: question.subtopic,
-      difficulty: question.difficulty,
-      question_type: question.questionType,
-      role_relevance: question.roleRelevance,
-      prompt: question.prompt,
-      options: question.options,
-      explanation: question.explanation,
-      is_active: false,
-    }));
+        key: question.key,
+        category: question.category,
+        subtopic: question.subtopic,
+        difficulty: question.difficulty,
+        question_type: question.questionType,
+        role_relevance: question.roleRelevance,
+        prompt: question.prompt,
+        options: question.options,
+        explanation: question.explanation,
+        is_active: false,
+      }));
 
-    const { data: insertedAI, error: insertAIError } = await supabase
-      .from("assessment_questions")
-      .insert(aiRows)
-      .select("id, key, category, subtopic, difficulty, question_type, role_relevance, prompt, options, explanation");
+    if (aiRowsToInsert.length > 0) {
+      const { data: insertedAI, error: insertAIError } = await supabase
+        .from("assessment_questions")
+        .insert(aiRowsToInsert)
+        .select(
+          "id, key, category, subtopic, difficulty, question_type, role_relevance, prompt, options, explanation"
+        );
 
-    if (!insertAIError && insertedAI && insertedAI.length > 0) {
-      selected = insertedAI
-        .map((row) =>
-          toPracticeQuestion({
-            id: String(row.id),
-            key: String(row.key),
-            category: String(row.category),
-            subtopic: String(row.subtopic || ""),
-            difficulty: String(row.difficulty || ""),
-            question_type: String(row.question_type || ""),
-            role_relevance: row.role_relevance,
-            prompt: String(row.prompt),
-            options: row.options,
-            explanation: String(row.explanation),
-          })
-        )
-        .filter((row): row is NonNullable<typeof row> => Boolean(row));
+      if (!insertAIError && insertedAI && insertedAI.length > 0) {
+        aiSelected = mapRawRowsToPracticeQuestions(insertedAI as RawQuestionRow[]);
+      }
     }
   }
 
-  if (selected.length < 10) {
-    const { data: questionRows, error: questionError } = await supabase
-      .from("assessment_questions")
-      .select("id, key, category, subtopic, difficulty, question_type, role_relevance, prompt, options, explanation")
-      .eq("is_active", true);
+  let selected: PracticeQuestion[] = [];
+  let source = "daily";
+  let plan: Record<string, unknown> = {
+    mode,
+    targetCount: DAILY_PRACTICE_QUESTION_COUNT,
+    weakPrimary: learningProfile.weakestDisciplines[0] || null,
+    weakSecondary: learningProfile.weakestDisciplines[1] || null,
+    weakSubtopics: learningProfile.weakSubtopics.slice(0, 4),
+  };
 
-    if (questionError) {
-      redirect(`/dashboard?error=practice_questions_unavailable`);
+  if (mode === "ai_only") {
+    if (aiSelected.length < DAILY_PRACTICE_QUESTION_COUNT) {
+      redirect(`/dashboard?error=practice_ai_unavailable`);
     }
 
-    const questions = (questionRows || [])
-      .map((row) =>
-        toPracticeQuestion({
-          id: String(row.id),
-          key: String(row.key),
-          category: String(row.category),
-          subtopic: String(row.subtopic || ""),
-          difficulty: String(row.difficulty || ""),
-          question_type: String(row.question_type || ""),
-          role_relevance: row.role_relevance,
-          prompt: String(row.prompt),
-          options: row.options,
-          explanation: String(row.explanation),
-        })
-      )
-      .filter((row): row is NonNullable<typeof row> => Boolean(row))
-      .filter((row) => !blockedQuestionIds.has(row.id));
-
-    if (questions.length < 10) {
+    selected = aiSelected.slice(0, DAILY_PRACTICE_QUESTION_COUNT);
+    source = "daily_ai";
+    plan = {
+      ...plan,
+      generator: "openai",
+      aiGeneratedCount: selected.length,
+      fallbackCount: 0,
+    };
+  } else {
+    if (bankQuestions.length < DAILY_PRACTICE_QUESTION_COUNT) {
       redirect(`/dashboard?error=practice_questions_unavailable`);
     }
 
     const fallback = buildAdaptiveDailyLesson(
-      questions,
+      bankQuestions,
       learningProfile,
       missedQuestionIds,
-      10
+      DAILY_PRACTICE_QUESTION_COUNT
     );
-    if (selected.length === 0) {
+
+    if (mode === "bank_only") {
       selected = fallback.questions;
-      plan = fallback.plan;
-    } else {
-      const needed = 10 - selected.length;
-      const fallbackFill = fallback.questions.slice(0, needed);
-      selected = [...selected, ...fallbackFill];
+      source = "daily";
+      plan = {
+        ...plan,
+        generator: "bank_adaptive",
+        aiGeneratedCount: 0,
+        fallbackCount: selected.length,
+      };
+    } else if (aiSelected.length >= DAILY_PRACTICE_QUESTION_COUNT) {
+      selected = aiSelected.slice(0, DAILY_PRACTICE_QUESTION_COUNT);
       source = "daily_ai";
       plan = {
+        ...plan,
+        generator: "openai",
+        aiGeneratedCount: selected.length,
+        fallbackCount: 0,
+      };
+    } else if (aiSelected.length > 0) {
+      const needed = DAILY_PRACTICE_QUESTION_COUNT - aiSelected.length;
+      selected = [...aiSelected, ...fallback.questions.slice(0, needed)];
+      source = "daily_ai_hybrid";
+      plan = {
+        ...plan,
         generator: "openai_hybrid",
-        targetCount: 10,
-        aiGeneratedCount: selected.length - fallbackFill.length,
-        fallbackCount: fallbackFill.length,
-        weakPrimary: learningProfile.weakestDisciplines[0] || null,
-        weakSecondary: learningProfile.weakestDisciplines[1] || null,
-        weakSubtopics: learningProfile.weakSubtopics.slice(0, 4),
-        selectedQuestionIds: selected.map((q) => q.id),
+        aiGeneratedCount: aiSelected.length,
+        fallbackCount: needed,
+      };
+    } else {
+      selected = fallback.questions;
+      source = "daily";
+      plan = {
+        ...plan,
+        generator: "bank_adaptive",
+        aiGeneratedCount: 0,
+        fallbackCount: selected.length,
       };
     }
-  } else {
-    source = "daily_ai";
-    plan = {
-      generator: "openai",
-      targetCount: 10,
-      weakPrimary: learningProfile.weakestDisciplines[0] || null,
-      weakSecondary: learningProfile.weakestDisciplines[1] || null,
-      weakSubtopics: learningProfile.weakSubtopics.slice(0, 4),
-      selectedQuestionIds: selected.map((q) => q.id),
-    };
   }
+
+  if (selected.length < DAILY_PRACTICE_QUESTION_COUNT) {
+    redirect(`/dashboard?error=practice_start_failed`);
+  }
+
+  plan.selectedQuestionIds = selected.map((q) => q.id);
 
   const { data: session, error: sessionError } = await supabase
     .from("practice_sessions")
