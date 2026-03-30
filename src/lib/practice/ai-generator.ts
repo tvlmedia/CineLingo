@@ -38,6 +38,16 @@ const SUBJECTIVE_TERMS = [
   "which factor matters most",
 ] as const;
 
+const AMBIGUOUS_PROMPT_PATTERNS = [
+  /\bwhich is better\b/i,
+  /\bmost cinematic\b/i,
+  /\bmost effective\b/i,
+  /\bbest approach\b/i,
+  /\bbest strategy\b/i,
+  /\bwhat feels\b/i,
+  /\bartistically\b/i,
+] as const;
+
 function isAssessmentCategory(value: string): value is AssessmentCategory {
   return (ASSESSMENT_CATEGORIES as readonly string[]).includes(value);
 }
@@ -89,6 +99,29 @@ function hasSubjectiveLanguage(text: string): boolean {
   return SUBJECTIVE_TERMS.some((term) => normalized.includes(term));
 }
 
+function hasAmbiguousPromptPattern(text: string): boolean {
+  return AMBIGUOUS_PROMPT_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function normalizeForCompare(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function areChoicesTooSimilar(choices: string[]): boolean {
+  const normalized = choices.map((entry) => normalizeForCompare(entry));
+  for (let i = 0; i < normalized.length; i += 1) {
+    for (let j = i + 1; j < normalized.length; j += 1) {
+      if (!normalized[i] || !normalized[j]) return true;
+      if (normalized[i] === normalized[j]) return true;
+
+      const shorter = normalized[i].length <= normalized[j].length ? normalized[i] : normalized[j];
+      const longer = normalized[i].length > normalized[j].length ? normalized[i] : normalized[j];
+      if (longer.includes(shorter) && shorter.length >= 24) return true;
+    }
+  }
+  return false;
+}
+
 function parseGeneratedQuestions(text: string, targetCount: number, accuracy: number): PracticeQuestion[] {
   let raw: unknown;
   try {
@@ -112,7 +145,11 @@ function parseGeneratedQuestions(text: string, targetCount: number, accuracy: nu
     const subtopic = typeof q.subtopic === "string" ? q.subtopic.trim() : "";
 
     if (!isAssessmentCategory(category) || !prompt || !explanation) continue;
+    if (!prompt.endsWith("?")) continue;
+    if (prompt.length < 50 || prompt.length > 340) continue;
+    if (explanation.length < 60 || explanation.length > 520) continue;
     if (hasSubjectiveLanguage(prompt) || hasSubjectiveLanguage(explanation)) continue;
+    if (hasAmbiguousPromptPattern(prompt)) continue;
     if (!Array.isArray(q.choices) || q.choices.length !== 4) continue;
     if (typeof q.correctIndex !== "number" || q.correctIndex < 0 || q.correctIndex > 3) continue;
 
@@ -120,10 +157,13 @@ function parseGeneratedQuestions(text: string, targetCount: number, accuracy: nu
       .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
       .filter((entry) => entry.length > 0);
     if (choiceTexts.length !== 4) continue;
+    if (choiceTexts.some((entry) => entry.length < 8 || entry.length > 200)) continue;
+    if (choiceTexts.some((entry) => /all of the above|none of the above/i.test(entry))) continue;
 
     const uniqueChoices = new Set(choiceTexts.map((entry) => entry.toLowerCase()));
     if (uniqueChoices.size !== 4) continue;
     if (choiceTexts.some((entry) => hasSubjectiveLanguage(entry))) continue;
+    if (areChoicesTooSimilar(choiceTexts)) continue;
 
     const idBase = crypto.randomUUID().slice(0, 8);
     const options = choiceTexts.map((text, index) => ({

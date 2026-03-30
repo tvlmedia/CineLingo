@@ -5,6 +5,7 @@ import { Container } from "@/components/ui";
 import { startAssessment } from "@/app/onboarding/actions";
 import { startDailyPractice } from "@/app/practice/actions";
 import { ASSESSMENT_CATEGORIES, type AssessmentCategory } from "@/lib/assessment/types";
+import { PracticePrewarm } from "./PracticePrewarm";
 
 function isoToday(): string {
   return new Date().toISOString().slice(0, 10);
@@ -168,6 +169,7 @@ export default async function DashboardPage({
   );
 
   const hasInProgress = Boolean(inProgressSession?.id);
+  const canPrewarmAi = Boolean(process.env.OPENAI_API_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY);
   const friendsCount = socialRows?.length || 0;
   const totalDisciplineXp = disciplineList.reduce(
     (sum: number, item: (typeof disciplineList)[number]) => sum + item.xp,
@@ -187,6 +189,7 @@ export default async function DashboardPage({
   return (
     <main className="min-h-screen py-8 md:py-10">
       <Container>
+        <PracticePrewarm enabled={!hasInProgress && canPrewarmAi} />
         {error ? (
           <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
               {error === "practice_abandon_failed"
@@ -195,6 +198,8 @@ export default async function DashboardPage({
                   ? "Could not start a new practice session. Try again."
                   : error === "practice_ai_key_missing"
                     ? "OpenAI key is missing on the server. Add OPENAI_API_KEY in Vercel."
+                    : error === "practice_ai_storage_unavailable"
+                      ? "AI sessions need Supabase service role key. Add SUPABASE_SERVICE_ROLE_KEY in Vercel."
                     : error === "practice_ai_unavailable"
                       ? "AI session could not generate enough quality questions right now. Try again."
                     : error === "practice_questions_unavailable"

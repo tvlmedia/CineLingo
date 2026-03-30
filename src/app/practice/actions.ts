@@ -3,17 +3,27 @@
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { ASSESSMENT_CATEGORIES, type AssessmentCategory } from "@/lib/assessment/types";
-import { buildShuffledOptionOrder, toPracticeQuestion } from "@/lib/practice/engine";
+import { buildShuffledOptionOrder } from "@/lib/practice/engine";
 import { buildAdaptiveDailyLesson } from "@/lib/practice/lesson-generator";
 import { buildLearningProfile, saveLearningProfile, type LearningProfile } from "@/lib/practice/profile";
 import { generateAIDailyQuestions } from "@/lib/practice/ai-generator";
 import { loadBlockedQuestionIdsForPractice } from "@/lib/practice/question-quality";
 import {
+  isQuestionRowFresh,
+  mapRawRowsToPracticeQuestions,
+  type RawQuestionRow,
+} from "@/lib/practice/question-rows";
+import {
   DAILY_GOAL_XP_DEFAULT,
   DAILY_PRACTICE_QUESTION_COUNT,
   type PracticeQuestion,
 } from "@/lib/practice/types";
+
+const PREWARM_KEY_PREFIX = "prewarm";
+const PREWARM_MAX_AGE_MS = 1000 * 60 * 50;
+const PREWARM_FETCH_LIMIT = 40;
 
 function isAssessmentCategory(value: string): value is AssessmentCategory {
   return (ASSESSMENT_CATEGORIES as readonly string[]).includes(value);
@@ -41,36 +51,17 @@ function parsePracticeStartMode(value: unknown): PracticeStartMode {
   return "adaptive";
 }
 
-type RawQuestionRow = {
-  id: unknown;
-  key: unknown;
-  category: unknown;
-  subtopic: unknown;
-  difficulty: unknown;
-  question_type: unknown;
-  role_relevance: unknown;
-  prompt: unknown;
-  options: unknown;
-  explanation: unknown;
-};
+function uniqById(input: PracticeQuestion[]): PracticeQuestion[] {
+  const seen = new Set<string>();
+  const out: PracticeQuestion[] = [];
 
-function mapRawRowsToPracticeQuestions(rows: RawQuestionRow[]): PracticeQuestion[] {
-  return rows
-    .map((row) =>
-      toPracticeQuestion({
-        id: String(row.id),
-        key: String(row.key),
-        category: String(row.category),
-        subtopic: String(row.subtopic || ""),
-        difficulty: String(row.difficulty || ""),
-        question_type: String(row.question_type || ""),
-        role_relevance: row.role_relevance,
-        prompt: String(row.prompt),
-        options: row.options,
-        explanation: String(row.explanation),
-      })
-    )
-    .filter((row): row is PracticeQuestion => Boolean(row));
+  for (const row of input) {
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+    out.push(row);
+  }
+
+  return out;
 }
 
 export async function startDailyPractice(formData: FormData): Promise<void> {
@@ -155,56 +146,67 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
     .map((row) => String(row.question_id || ""))
     .filter((value) => value.length > 0);
   const blockedQuestionIds = await loadBlockedQuestionIdsForPractice(supabase, user.id);
+  const adminSupabase = createAdminClient();
 
-  const bankPromise =
-    mode === "ai_only"
-      ? null
-      : supabase
-          .from("assessment_questions")
-          .select(
-            "id, key, category, subtopic, difficulty, question_type, role_relevance, prompt, options, explanation"
-          )
-          .eq("is_active", true);
-
-  const aiPromise =
-    mode === "bank_only"
-      ? null
-      : generateAIDailyQuestions({
-          learningProfile,
-          targetCount: DAILY_PRACTICE_QUESTION_COUNT,
-          timeoutMs: mode === "ai_only" ? 4500 : 2400,
-        });
-
-  let aiQuestions: PracticeQuestion[] = [];
+  let prewarmedRows: RawQuestionRow[] = [];
   let bankRows: RawQuestionRow[] = [];
+  if (mode !== "bank_only") {
+    const { data: cachedRows } = await supabase
+      .from("assessment_questions")
+      .select(
+        "id, key, category, subtopic, difficulty, question_type, role_relevance, prompt, options, explanation, created_at"
+      )
+      .eq("is_active", false)
+      .ilike("key", `${PREWARM_KEY_PREFIX}:${user.id}:%`)
+      .order("created_at", { ascending: false })
+      .limit(PREWARM_FETCH_LIMIT);
+    prewarmedRows = (cachedRows || []) as RawQuestionRow[];
+  }
 
-  if (bankPromise && aiPromise) {
-    const [aiResult, bankResult] = await Promise.all([aiPromise, bankPromise]);
-    aiQuestions = aiResult;
-    if (bankResult.error) {
+  if (mode !== "ai_only") {
+    const { data: bankData, error: bankError } = await supabase
+      .from("assessment_questions")
+      .select(
+        "id, key, category, subtopic, difficulty, question_type, role_relevance, prompt, options, explanation"
+      )
+      .eq("is_active", true);
+
+    if (bankError) {
       redirect(`/dashboard?error=practice_questions_unavailable`);
     }
-    bankRows = (bankResult.data || []) as RawQuestionRow[];
-  } else if (aiPromise) {
-    aiQuestions = await aiPromise;
-  } else if (bankPromise) {
-    const bankResult = await bankPromise;
-    if (bankResult.error) {
-      redirect(`/dashboard?error=practice_questions_unavailable`);
-    }
-    bankRows = (bankResult.data || []) as RawQuestionRow[];
+
+    bankRows = (bankData || []) as RawQuestionRow[];
   }
 
   const bankQuestions = mapRawRowsToPracticeQuestions(bankRows).filter(
     (row) => !blockedQuestionIds.has(row.id)
   );
 
-  let aiSelected: PracticeQuestion[] = [];
-  if (aiQuestions.length >= 6) {
+  const nowMs = Date.now();
+  const prewarmedQuestions = mapRawRowsToPracticeQuestions(
+    prewarmedRows.filter((row) => isQuestionRowFresh(row, PREWARM_MAX_AGE_MS, nowMs))
+  ).filter((row) => !blockedQuestionIds.has(row.id));
+
+  const targetAiCount = Math.max(0, DAILY_PRACTICE_QUESTION_COUNT - prewarmedQuestions.length);
+  const shouldGenerateAi = mode !== "bank_only" && targetAiCount > 0;
+  const aiQuestions = shouldGenerateAi
+    ? await generateAIDailyQuestions({
+        learningProfile,
+        targetCount:
+          mode === "ai_only"
+            ? Math.max(targetAiCount, DAILY_PRACTICE_QUESTION_COUNT)
+            : Math.max(targetAiCount, 6),
+        timeoutMs: mode === "ai_only" ? 5200 : 3200,
+      })
+    : [];
+
+  let aiPersistedQuestions: PracticeQuestion[] = [];
+  let aiInsertFailed = false;
+  if (aiQuestions.length > 0) {
     const aiRowsToInsert = aiQuestions
       .filter((question) => !blockedQuestionIds.has(question.id))
-      .map((question) => ({
-        key: question.key,
+      .map((question, index) => ({
+        key: `ai-live:${user.id}:${Date.now()}:${index}:${crypto.randomUUID().slice(0, 8)}`,
         category: question.category,
         subtopic: question.subtopic,
         difficulty: question.difficulty,
@@ -217,18 +219,23 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
       }));
 
     if (aiRowsToInsert.length > 0) {
-      const { data: insertedAI, error: insertAIError } = await supabase
+      const writeClient = adminSupabase || supabase;
+      const { data: insertedAI, error: insertAIError } = await writeClient
         .from("assessment_questions")
         .insert(aiRowsToInsert)
         .select(
           "id, key, category, subtopic, difficulty, question_type, role_relevance, prompt, options, explanation"
         );
 
-      if (!insertAIError && insertedAI && insertedAI.length > 0) {
-        aiSelected = mapRawRowsToPracticeQuestions(insertedAI as RawQuestionRow[]);
+      if (insertAIError) {
+        aiInsertFailed = true;
+      } else if (insertedAI && insertedAI.length > 0) {
+        aiPersistedQuestions = mapRawRowsToPracticeQuestions(insertedAI as RawQuestionRow[]);
       }
     }
   }
+
+  const aiSelected = uniqById([...prewarmedQuestions, ...aiPersistedQuestions]);
 
   let selected: PracticeQuestion[] = [];
   let source = "daily";
@@ -242,6 +249,9 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
 
   if (mode === "ai_only") {
     if (aiSelected.length < DAILY_PRACTICE_QUESTION_COUNT) {
+      if (aiInsertFailed) {
+        redirect(`/dashboard?error=practice_ai_storage_unavailable`);
+      }
       redirect(`/dashboard?error=practice_ai_unavailable`);
     }
 
@@ -250,6 +260,8 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
     plan = {
       ...plan,
       generator: "openai",
+      prewarmedCount: prewarmedQuestions.length,
+      liveGeneratedCount: aiPersistedQuestions.length,
       aiGeneratedCount: selected.length,
       fallbackCount: 0,
     };
@@ -271,6 +283,8 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
       plan = {
         ...plan,
         generator: "bank_adaptive",
+        prewarmedCount: 0,
+        liveGeneratedCount: 0,
         aiGeneratedCount: 0,
         fallbackCount: selected.length,
       };
@@ -280,6 +294,8 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
       plan = {
         ...plan,
         generator: "openai",
+        prewarmedCount: prewarmedQuestions.length,
+        liveGeneratedCount: aiPersistedQuestions.length,
         aiGeneratedCount: selected.length,
         fallbackCount: 0,
       };
@@ -290,6 +306,8 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
       plan = {
         ...plan,
         generator: "openai_hybrid",
+        prewarmedCount: prewarmedQuestions.length,
+        liveGeneratedCount: aiPersistedQuestions.length,
         aiGeneratedCount: aiSelected.length,
         fallbackCount: needed,
       };
@@ -299,6 +317,8 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
       plan = {
         ...plan,
         generator: "bank_adaptive",
+        prewarmedCount: prewarmedQuestions.length,
+        liveGeneratedCount: 0,
         aiGeneratedCount: 0,
         fallbackCount: selected.length,
       };
