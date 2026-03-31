@@ -13,6 +13,13 @@ function isoToday(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function diffDaysUtc(laterIso: string, earlierIso: string): number {
+  const later = new Date(`${laterIso}T00:00:00.000Z`);
+  const earlier = new Date(`${earlierIso}T00:00:00.000Z`);
+  const diffMs = later.getTime() - earlier.getTime();
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+}
+
 type DisciplineRow = {
   category: string;
   xp_earned: number;
@@ -45,7 +52,7 @@ export default async function DashboardPage({
   weekStart.setUTCDate(weekStart.getUTCDate() - 6);
   const weekStartIso = weekStart.toISOString().slice(0, 10);
 
-  const [{ data: profile }, { data: latestAssessment }, { data: inProgressSession }, { data: todayProgress }, { data: disciplineRows }, { data: lastPracticeSession }, { data: socialRows }, { data: weeklyRows }, { data: missedQueueRows }, { data: learningProfile }, { data: todayCompletedSessions }] =
+  const [{ data: profile }, { data: latestAssessment }, { data: inProgressSession }, { data: todayProgress }, { data: disciplineRows }, { data: lastPracticeSession }, { data: socialRows }, { data: weeklyRows }, { data: missedQueueRows }, { data: learningProfile }, { data: todayCompletedSessions }, { data: recentFreezeSession }] =
     await Promise.all([
       supabase
         .from("profiles")
@@ -112,6 +119,15 @@ export default async function DashboardPage({
         .eq("user_id", user.id)
         .eq("status", "completed")
         .eq("lesson_date", today),
+      supabase
+        .from("practice_sessions")
+        .select("lesson_date")
+        .eq("user_id", user.id)
+        .eq("status", "completed")
+        .contains("lesson_plan", { streakFreezeApplied: true })
+        .order("lesson_date", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
 
   const friendIds = Array.from(
@@ -341,6 +357,15 @@ export default async function DashboardPage({
           (row.lesson_plan as Record<string, unknown>).dailyQuestRewardGranted
       )
   );
+  const recentFreezeDate =
+    recentFreezeSession && typeof recentFreezeSession.lesson_date === "string"
+      ? recentFreezeSession.lesson_date
+      : null;
+  const freezeCooldownDays =
+    recentFreezeDate && recentFreezeDate <= today
+      ? Math.max(0, 7 - diffDaysUtc(today, recentFreezeDate))
+      : 0;
+  const streakFreezeReady = freezeCooldownDays === 0;
   const weakSubtopics = Array.isArray(learningProfile?.weak_subtopics)
     ? learningProfile.weak_subtopics.filter((entry): entry is string => typeof entry === "string").slice(0, 3)
     : [];
@@ -513,6 +538,9 @@ export default async function DashboardPage({
             <div className="rounded-xl border border-border bg-[#1b1c20] px-4 py-3">
               <p className="text-xs text-muted">Daily streak</p>
               <p className="mt-1 text-xl font-semibold">{streak} days</p>
+              <p className="mt-1 text-xs text-muted">
+                Streak freeze: {streakFreezeReady ? "Ready" : `Cooldown (${freezeCooldownDays}d)`}
+              </p>
             </div>
             <div className="rounded-xl border border-border bg-[#1b1c20] px-4 py-3">
               <p className="text-xs text-muted">Sessions today</p>

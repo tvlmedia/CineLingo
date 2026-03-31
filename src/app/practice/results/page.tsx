@@ -73,12 +73,14 @@ function readLessonPlanMeta(value: unknown): {
   dailyQuestTitle: string;
   dailyQuestRewardGranted: boolean;
   dailyQuestBonusXp: number;
+  streakFreezeApplied: boolean;
 } {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {
       dailyQuestTitle: "",
       dailyQuestRewardGranted: false,
       dailyQuestBonusXp: 0,
+      streakFreezeApplied: false,
     };
   }
 
@@ -87,6 +89,7 @@ function readLessonPlanMeta(value: unknown): {
     dailyQuestTitle: typeof row.dailyQuestTitle === "string" ? row.dailyQuestTitle : "",
     dailyQuestRewardGranted: Boolean(row.dailyQuestRewardGranted),
     dailyQuestBonusXp: Number(row.dailyQuestBonusXp || 0),
+    streakFreezeApplied: Boolean(row.streakFreezeApplied),
   };
 }
 
@@ -251,6 +254,11 @@ export default async function PracticeResultsPage({
             {lessonMeta.dailyQuestRewardGranted ? (
               <p className="mt-1 text-sm text-[#e4d2a4]">
                 Daily quest complete{lessonMeta.dailyQuestTitle ? `: ${lessonMeta.dailyQuestTitle}` : ""} · +{lessonMeta.dailyQuestBonusXp} XP bonus
+              </p>
+            ) : null}
+            {lessonMeta.streakFreezeApplied ? (
+              <p className="mt-1 text-sm text-[#f1debc]">
+                Streak freeze applied: your streak was protected for one missed day.
               </p>
             ) : null}
             {strongestToday ? (

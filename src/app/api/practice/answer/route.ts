@@ -22,6 +22,13 @@ function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function diffDaysUtc(laterIso: string, earlierIso: string): number {
+  const later = new Date(`${laterIso}T00:00:00.000Z`);
+  const earlier = new Date(`${earlierIso}T00:00:00.000Z`);
+  const diffMs = later.getTime() - earlier.getTime();
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+}
+
 type JoinedQuestionRaw =
   | {
       id?: unknown;
@@ -112,7 +119,7 @@ async function finalizeSessionAndProgress(sessionId: string, userId: string) {
 
   const { data: streakRows } = await supabase
     .from("user_daily_progress")
-    .select("day_date")
+    .select("day_date, current_streak")
     .eq("user_id", userId)
     .gt("sessions_completed", 0)
     .order("day_date", { ascending: false })
@@ -120,7 +127,41 @@ async function finalizeSessionAndProgress(sessionId: string, userId: string) {
 
   const completedDates = (streakRows || []).map((row) => String(row.day_date));
   const nextDates = Array.from(new Set([...completedDates, today]));
-  const nextStreak = computeContiguousStreakFromDates(nextDates, today);
+  const baseNextStreak = computeContiguousStreakFromDates(nextDates, today);
+  let nextStreak = baseNextStreak;
+  let streakFreezeApplied = false;
+
+  if (baseNextStreak <= 1) {
+    const previousRows = (streakRows || [])
+      .map((row) => ({
+        dayDate: String(row.day_date || ""),
+        currentStreak: Number(row.current_streak || 0),
+      }))
+      .filter((row) => row.dayDate.length > 0 && row.dayDate < today)
+      .sort((a, b) => b.dayDate.localeCompare(a.dayDate));
+
+    const previous = previousRows[0];
+    if (previous && diffDaysUtc(today, previous.dayDate) === 2) {
+      const freezeCooldownDate = new Date(`${today}T00:00:00.000Z`);
+      freezeCooldownDate.setUTCDate(freezeCooldownDate.getUTCDate() - 6);
+      const freezeSince = freezeCooldownDate.toISOString().slice(0, 10);
+
+      const { data: recentFreeze } = await supabase
+        .from("practice_sessions")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("status", "completed")
+        .gte("lesson_date", freezeSince)
+        .contains("lesson_plan", { streakFreezeApplied: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (!recentFreeze?.id && previous.currentStreak > 0) {
+        nextStreak = previous.currentStreak + 1;
+        streakFreezeApplied = true;
+      }
+    }
+  }
 
   const xp = computePracticeXP(correctCount, totalQuestions, nextStreak);
 
@@ -265,6 +306,7 @@ async function finalizeSessionAndProgress(sessionId: string, userId: string) {
         dailyQuestTarget: dailyQuest.targetValue,
         dailyQuestBonusXp: questBonusXp,
         dailyQuestRewardGranted: questBonusXp > 0,
+        streakFreezeApplied,
       },
     })
     .eq("id", sessionId)
@@ -337,6 +379,7 @@ async function finalizeSessionAndProgress(sessionId: string, userId: string) {
     xp,
     sessionXpEarned,
     questBonusXp,
+    streakFreezeApplied,
     dailyQuest,
     dailyQuestCompleted: questProgressAfterSession.completed,
     dailyQuestAlreadyRewarded: questAlreadyRewarded,
@@ -480,6 +523,7 @@ export async function POST(request: NextRequest) {
       summary: {
         xpEarned: final.sessionXpEarned,
         questBonusXp: final.questBonusXp,
+        streakFreezeApplied: final.streakFreezeApplied,
         dailyQuest: {
           id: final.dailyQuest.id,
           title: final.dailyQuest.title,
