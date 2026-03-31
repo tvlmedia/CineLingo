@@ -303,9 +303,9 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
         aiGeneratedCount: selected.length,
         fallbackCount: 0,
       };
-    } else {
-      // AI-only mode should never hard-fail for users when bank fallback is available.
-      // If AI quality/volume is insufficient, gracefully switch to adaptive bank questions.
+    } else if (aiSelected.length > 0) {
+      // AI-only mode: allow hybrid fill when we have at least some valid AI output.
+      // Never silently degrade to 100% bank-only content in this mode.
       const { data: bankData, error: bankError } = await supabase
         .from("assessment_questions")
         .select(
@@ -345,17 +345,24 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
         redirect(`/dashboard?error=practice_start_failed`);
       }
 
-      selected = fallback.questions;
-      source = aiSelected.length > 0 ? "daily_ai_hybrid" : "daily";
+      const needed = sessionTargetCount - aiSelected.length;
+      selected = [...aiSelected, ...fallback.questions.slice(0, needed)];
+      source = "daily_ai_hybrid";
       plan = {
         ...plan,
-        generator: "openai_fallback_bank",
+        generator: "openai_hybrid",
         prewarmedCount: prewarmedQuestions.length,
         liveGeneratedCount: aiPersistedQuestions.length,
         aiGeneratedCount: aiSelected.length,
-        fallbackCount: selected.length,
+        fallbackCount: needed,
         aiFallbackReason: aiInsertFailed ? "ai_storage_unavailable" : "ai_quality_unavailable",
       };
+    } else {
+      // Zero valid AI questions: keep AI-only honest and return explicit error.
+      if (aiInsertFailed) {
+        redirect(`/dashboard?error=practice_ai_storage_unavailable`);
+      }
+      redirect(`/dashboard?error=practice_ai_unavailable`);
     }
   } else if (mode === "recovery") {
     if (bankQuestions.length < sessionTargetCount) {
