@@ -68,8 +68,6 @@ function normalizeJoinedQuestion(value: JoinedQuestionRaw): {
 async function finalizeSessionAndProgress(sessionId: string, userId: string) {
   const supabase = await createClient();
   const today = todayIsoDate();
-  const dailyQuest = getDailyQuest(new Date(`${today}T00:00:00.000Z`));
-
   const { data: sessionRow } = await supabase
     .from("practice_sessions")
     .select("source, lesson_plan")
@@ -136,7 +134,7 @@ async function finalizeSessionAndProgress(sessionId: string, userId: string) {
   const weakestDiscipline = sortedByRatio[0]?.category || null;
   const strongestDiscipline = sortedByRatio[sortedByRatio.length - 1]?.category || null;
 
-  const [{ data: profileRow }, { data: weakSubtopicRows }] = await Promise.all([
+  const [{ data: profileRow }, { data: weakSubtopicRows }, { data: learningProfileRow }] = await Promise.all([
     supabase.from("profiles").select("role_focus").eq("id", userId).maybeSingle(),
     supabase
       .from("user_missed_questions")
@@ -145,7 +143,24 @@ async function finalizeSessionAndProgress(sessionId: string, userId: string) {
       .eq("status", "open")
       .order("last_missed_at", { ascending: false })
       .limit(6),
+    supabase
+      .from("user_learning_profiles")
+      .select("weakest_disciplines")
+      .eq("user_id", userId)
+      .maybeSingle(),
   ]);
+
+  const weakestFromProfile = Array.isArray(learningProfileRow?.weakest_disciplines)
+    ? learningProfileRow.weakest_disciplines.find(
+        (entry): entry is AssessmentCategory =>
+          typeof entry === "string" && isAssessmentCategory(entry)
+      ) || null
+    : null;
+  const dailyQuest = getDailyQuest({
+    date: new Date(`${today}T00:00:00.000Z`),
+    userId,
+    weakestDiscipline: weakestFromProfile,
+  });
 
   const weakSubtopics = (weakSubtopicRows || [])
     .map((row) => String((Array.isArray(row.question) ? row.question[0] : row.question)?.subtopic || ""))
@@ -173,6 +188,41 @@ async function finalizeSessionAndProgress(sessionId: string, userId: string) {
   const projectedXpWithoutQuest = existingXp + xp.totalXp;
   const projectedSessions = existingSessions + 1;
 
+  const { data: todayCompletedSessionRows } = await supabase
+    .from("practice_sessions")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("status", "completed")
+    .eq("lesson_date", today);
+  const todayCompletedSessionIds = (todayCompletedSessionRows || [])
+    .map((row) => String(row.id || ""))
+    .filter((value) => value.length > 0);
+
+  let priorWeakCorrectToday = 0;
+  if (dailyQuest.metric === "weak_correct" && dailyQuest.discipline && todayCompletedSessionIds.length > 0) {
+    const { data: priorRows } = await supabase
+      .from("practice_answers")
+      .select("is_correct, question:assessment_questions(category)")
+      .in("session_id", todayCompletedSessionIds)
+      .eq("user_id", userId)
+      .eq("is_correct", true);
+
+    priorWeakCorrectToday = (priorRows || []).reduce(
+      (sum: number, row: { question?: unknown }) => {
+        const categoryRaw = String(
+          (Array.isArray(row.question) ? row.question[0] : row.question)?.category || ""
+        );
+        return categoryRaw === dailyQuest.discipline ? sum + 1 : sum;
+      },
+      0
+    );
+  }
+  const currentSessionWeakCorrect =
+    dailyQuest.metric === "weak_correct" && dailyQuest.discipline
+      ? Number(sessionCategoryStats.get(dailyQuest.discipline)?.correct || 0)
+      : 0;
+  const weakCorrectTodayAfterSession = priorWeakCorrectToday + currentSessionWeakCorrect;
+
   const { data: priorQuestRewardedRow } = await supabase
     .from("practice_sessions")
     .select("id")
@@ -185,8 +235,11 @@ async function finalizeSessionAndProgress(sessionId: string, userId: string) {
   const questAlreadyRewarded = Boolean(priorQuestRewardedRow?.id);
   const questProgressAfterSession = computeDailyQuestProgress(
     dailyQuest,
-    projectedXpWithoutQuest,
-    projectedSessions
+    {
+      xpToday: projectedXpWithoutQuest,
+      sessionsToday: projectedSessions,
+      weakCorrectToday: weakCorrectTodayAfterSession,
+    }
   );
   const questBonusXp =
     questProgressAfterSession.completed && !questAlreadyRewarded ? dailyQuest.bonusXp : 0;

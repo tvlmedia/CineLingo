@@ -27,6 +27,10 @@ function toCategory(value: string): AssessmentCategory | null {
     : null;
 }
 
+function isAssessmentCategory(value: string): value is AssessmentCategory {
+  return (ASSESSMENT_CATEGORIES as readonly string[]).includes(value);
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -290,8 +294,44 @@ export default async function DashboardPage({
   const missionDoneCount =
     (missionPracticeDone ? 1 : 0) + (missionReviewDone ? 1 : 0) + (missionGoalDone ? 1 : 0);
   const isAdmin = String(user.email || "").toLowerCase() === "info@tvlmedia.nl";
-  const todayQuest = getDailyQuest(new Date(`${today}T00:00:00.000Z`));
-  const todayQuestProgress = computeDailyQuestProgress(todayQuest, xpToday, sessionsToday);
+  const weakestFromProfile = Array.isArray(learningProfile?.weakest_disciplines)
+    ? learningProfile.weakest_disciplines.find(
+        (entry): entry is AssessmentCategory =>
+          typeof entry === "string" && isAssessmentCategory(entry)
+      ) || null
+    : null;
+  const todayQuest = getDailyQuest({
+    date: new Date(`${today}T00:00:00.000Z`),
+    userId: user.id,
+    weakestDiscipline: weakestFromProfile,
+  });
+  const todayCompletedSessionIds = ((todayCompletedSessions || []) as Array<{ id?: unknown }>)
+    .map((row) => (typeof row.id === "string" ? row.id : ""))
+    .filter((value) => value.length > 0);
+  let weakCorrectToday = 0;
+  if (todayQuest.metric === "weak_correct" && todayQuest.discipline && todayCompletedSessionIds.length > 0) {
+    const { data: weakCorrectRows } = await supabase
+      .from("practice_answers")
+      .select("is_correct, question:assessment_questions(category)")
+      .in("session_id", todayCompletedSessionIds)
+      .eq("user_id", user.id)
+      .eq("is_correct", true);
+
+    weakCorrectToday = (weakCorrectRows || []).reduce(
+      (sum: number, row: { question?: unknown }) => {
+        const categoryRaw = String(
+          (Array.isArray(row.question) ? row.question[0] : row.question)?.category || ""
+        );
+        return categoryRaw === todayQuest.discipline ? sum + 1 : sum;
+      },
+      0
+    );
+  }
+  const todayQuestProgress = computeDailyQuestProgress(todayQuest, {
+    xpToday,
+    sessionsToday,
+    weakCorrectToday,
+  });
   const questRewardClaimed = ((todayCompletedSessions || []) as Array<{ lesson_plan?: unknown }>).some(
     (row) =>
       Boolean(

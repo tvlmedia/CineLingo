@@ -1,4 +1,10 @@
-export type DailyQuestId = "complete_1_session" | "earn_100_xp" | "complete_2_sessions";
+import type { AssessmentCategory } from "@/lib/assessment/types";
+
+export type DailyQuestId =
+  | "complete_1_session"
+  | "earn_100_xp"
+  | "complete_2_sessions"
+  | "weak_discipline_focus";
 
 export type DailyQuestDefinition = {
   id: DailyQuestId;
@@ -6,7 +12,8 @@ export type DailyQuestDefinition = {
   description: string;
   bonusXp: number;
   targetValue: number;
-  metric: "sessions" | "xp";
+  metric: "sessions" | "xp" | "weak_correct";
+  discipline?: AssessmentCategory;
 };
 
 export type DailyQuestProgress = {
@@ -42,20 +49,61 @@ const QUEST_ROTATION: DailyQuestDefinition[] = [
   },
 ];
 
-export function getDailyQuest(date = new Date()): DailyQuestDefinition {
-  const dayNumber = Number(
-    date.toISOString().slice(0, 10).replaceAll("-", "")
-  );
-  const index = Math.abs(dayNumber) % QUEST_ROTATION.length;
+function deterministicHash(input: string): number {
+  let hash = 0;
+  for (let index = 0; index < input.length; index += 1) {
+    hash = (hash * 31 + input.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+}
+
+export function getDailyQuest({
+  date = new Date(),
+  userId = "",
+  weakestDiscipline = null,
+}: {
+  date?: Date;
+  userId?: string;
+  weakestDiscipline?: AssessmentCategory | null;
+} = {}): DailyQuestDefinition {
+  const dayKey = date.toISOString().slice(0, 10);
+  const hash = deterministicHash(`${dayKey}:${userId}`);
+  const useWeakDisciplineQuest = Boolean(weakestDiscipline) && hash % 3 === 0;
+
+  if (useWeakDisciplineQuest && weakestDiscipline) {
+    return {
+      id: "weak_discipline_focus",
+      title: "Weak area focus",
+      description: `Get 3 correct answers in ${weakestDiscipline} today.`,
+      bonusXp: 35,
+      targetValue: 3,
+      metric: "weak_correct",
+      discipline: weakestDiscipline,
+    };
+  }
+
+  const index = hash % QUEST_ROTATION.length;
   return QUEST_ROTATION[index];
 }
 
 export function computeDailyQuestProgress(
   quest: DailyQuestDefinition,
-  xpToday: number,
-  sessionsToday: number
+  {
+    xpToday,
+    sessionsToday,
+    weakCorrectToday = 0,
+  }: {
+    xpToday: number;
+    sessionsToday: number;
+    weakCorrectToday?: number;
+  }
 ): DailyQuestProgress {
-  const value = quest.metric === "xp" ? xpToday : sessionsToday;
+  const value =
+    quest.metric === "xp"
+      ? xpToday
+      : quest.metric === "sessions"
+        ? sessionsToday
+        : weakCorrectToday;
   const target = quest.targetValue;
   return {
     value,
@@ -63,4 +111,3 @@ export function computeDailyQuestProgress(
     completed: value >= target,
   };
 }
-
