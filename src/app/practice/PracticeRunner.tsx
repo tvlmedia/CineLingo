@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 type PracticeQuestionView = {
@@ -46,9 +46,11 @@ export function PracticeRunner({
   const [currentIndex, setCurrentIndex] = useState(initialIndex(questions, initialQuestionOrder));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [queuedNextQuestionOrder, setQueuedNextQuestionOrder] = useState<number | null>(null);
+  const [autoAdvancePending, setAutoAdvancePending] = useState(false);
   const [reportStatusByOrder, setReportStatusByOrder] = useState<
     Record<number, "idle" | "sending" | "done" | "error">
   >({});
+  const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [feedbackByOrder, setFeedbackByOrder] = useState<Record<number, Feedback>>(() => {
     const out: Record<number, Feedback> = {};
@@ -94,6 +96,13 @@ export function PracticeRunner({
     ? reportStatusByOrder[current.questionOrder] || "idle"
     : "idle";
 
+  function clearAutoAdvanceTimer() {
+    if (autoAdvanceTimerRef.current) {
+      clearTimeout(autoAdvanceTimerRef.current);
+      autoAdvanceTimerRef.current = null;
+    }
+  }
+
   function updateSelectedOption(optionId: string) {
     if (!current || currentFeedback) {
       return;
@@ -112,6 +121,9 @@ export function PracticeRunner({
   }
 
   function moveToNextQuestion(nextOrder: number | null) {
+    clearAutoAdvanceTimer();
+    setAutoAdvancePending(false);
+
     if (nextOrder !== null) {
       const explicitIndex = localQuestions.findIndex((question) => question.questionOrder === nextOrder);
       if (explicitIndex >= 0) {
@@ -191,14 +203,39 @@ export function PracticeRunner({
           return;
         }
 
-        setQueuedNextQuestionOrder(
-          typeof payload.nextQuestionOrder === "number" ? payload.nextQuestionOrder : null
-        );
+        const nextOrder =
+          typeof payload.nextQuestionOrder === "number" ? payload.nextQuestionOrder : null;
+        setQueuedNextQuestionOrder(nextOrder);
+
+        if (payload.feedback?.isCorrect && nextOrder !== null) {
+          setAutoAdvancePending(true);
+          clearAutoAdvanceTimer();
+          autoAdvanceTimerRef.current = setTimeout(() => {
+            moveToNextQuestion(nextOrder);
+            setQueuedNextQuestionOrder(null);
+          }, 550);
+        } else {
+          setAutoAdvancePending(false);
+        }
       } catch {
         setErrorMessage("Network error. Try again.");
+        setAutoAdvancePending(false);
       }
     });
   }
+
+  useEffect(() => {
+    return () => {
+      if (autoAdvanceTimerRef.current) {
+        clearTimeout(autoAdvanceTimerRef.current);
+        autoAdvanceTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    router.prefetch(`/practice/results?session=${encodeURIComponent(sessionId)}`);
+  }, [router, sessionId]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -362,6 +399,9 @@ export function PracticeRunner({
               Correct answer: <span className="font-semibold">{currentFeedback.correctOptionText}</span>
             </p>
           ) : null}
+          {currentFeedback.isCorrect && autoAdvancePending ? (
+            <p className="mt-1 text-xs text-[#d8dbdf]">Correct. Continuing automatically...</p>
+          ) : null}
           <p className="mt-2 text-[#d8dbdf]">{currentFeedback.explanation}</p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
@@ -395,7 +435,9 @@ export function PracticeRunner({
           {isPending
             ? "Saving..."
             : currentFeedback
-              ? current.questionOrder === localQuestions.length
+              ? autoAdvancePending
+                ? "Continue now"
+                : current.questionOrder === localQuestions.length
                 ? "Finish session"
                 : "Continue"
               : "Check answer"}
