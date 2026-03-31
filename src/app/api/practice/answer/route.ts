@@ -13,6 +13,7 @@ import { generateCoachSummaryWithOpenAI } from "@/lib/practice/coach";
 import { DAILY_GOAL_XP_DEFAULT } from "@/lib/practice/types";
 import { ASSESSMENT_CATEGORIES, type AssessmentCategory } from "@/lib/assessment/types";
 import { computeDailyQuestProgress, getDailyQuest } from "@/lib/practice/daily-quest";
+import { computeDisciplineLevelProgress } from "@/lib/practice/levels";
 
 function isAssessmentCategory(value: string): value is AssessmentCategory {
   return (ASSESSMENT_CATEGORIES as readonly string[]).includes(value);
@@ -287,6 +288,70 @@ async function finalizeSessionAndProgress(sessionId: string, userId: string) {
   const sessionXpEarned = xp.totalXp + questBonusXp;
   const updatedXp = existingXp + sessionXpEarned;
 
+  const categories = Array.from(sessionCategoryStats.keys());
+  const disciplineLevelUps: Array<{
+    category: AssessmentCategory;
+    fromLevel: number;
+    toLevel: number;
+  }> = [];
+  let disciplineUpsertRows: Array<{
+    user_id: string;
+    category: AssessmentCategory;
+    xp_earned: number;
+    total_answered: number;
+    total_correct: number;
+    mastery_status: string;
+    last_practiced_at: string;
+  }> = [];
+
+  if (categories.length > 0) {
+    const { data: existingDisciplineRows } = await supabase
+      .from("user_discipline_progress")
+      .select("category, xp_earned, total_answered, total_correct")
+      .eq("user_id", userId)
+      .in("category", categories);
+
+    const existingByCategory = new Map<string, { xp: number; total: number; correct: number }>();
+    (existingDisciplineRows || []).forEach((row) => {
+      existingByCategory.set(String(row.category), {
+        xp: Number(row.xp_earned || 0),
+        total: Number(row.total_answered || 0),
+        correct: Number(row.total_correct || 0),
+      });
+    });
+
+    disciplineUpsertRows = categories.map((category) => {
+      const stats = sessionCategoryStats.get(category)!;
+      const existing = existingByCategory.get(category) || { xp: 0, total: 0, correct: 0 };
+
+      const updatedTotal = existing.total + stats.total;
+      const updatedCorrect = existing.correct + stats.correct;
+      const updatedXpDiscipline = existing.xp + stats.correct * 10;
+      const accuracyRatio = updatedTotal > 0 ? updatedCorrect / updatedTotal : 0;
+      const masteryStatus = computeMasteryStatus(updatedTotal, accuracyRatio);
+
+      const previousLevel = computeDisciplineLevelProgress(existing.xp).level;
+      const nextLevel = computeDisciplineLevelProgress(updatedXpDiscipline).level;
+      if (nextLevel > previousLevel) {
+        disciplineLevelUps.push({
+          category,
+          fromLevel: previousLevel,
+          toLevel: nextLevel,
+        });
+      }
+
+      return {
+        user_id: userId,
+        category,
+        xp_earned: updatedXpDiscipline,
+        total_answered: updatedTotal,
+        total_correct: updatedCorrect,
+        mastery_status: masteryStatus,
+        last_practiced_at: new Date().toISOString(),
+      };
+    });
+  }
+
   const { error: sessionUpdateError } = await supabase
     .from("practice_sessions")
     .update({
@@ -307,6 +372,7 @@ async function finalizeSessionAndProgress(sessionId: string, userId: string) {
         dailyQuestBonusXp: questBonusXp,
         dailyQuestRewardGranted: questBonusXp > 0,
         streakFreezeApplied,
+        disciplineLevelUps,
       },
     })
     .eq("id", sessionId)
@@ -329,45 +395,8 @@ async function finalizeSessionAndProgress(sessionId: string, userId: string) {
     { onConflict: "user_id,day_date" }
   );
 
-  const categories = Array.from(sessionCategoryStats.keys());
-  if (categories.length > 0) {
-    const { data: existingDisciplineRows } = await supabase
-      .from("user_discipline_progress")
-      .select("category, xp_earned, total_answered, total_correct")
-      .eq("user_id", userId)
-      .in("category", categories);
-
-    const existingByCategory = new Map<string, { xp: number; total: number; correct: number }>();
-    (existingDisciplineRows || []).forEach((row) => {
-      existingByCategory.set(String(row.category), {
-        xp: Number(row.xp_earned || 0),
-        total: Number(row.total_answered || 0),
-        correct: Number(row.total_correct || 0),
-      });
-    });
-
-    const upsertRows = categories.map((category) => {
-      const stats = sessionCategoryStats.get(category)!;
-      const existing = existingByCategory.get(category) || { xp: 0, total: 0, correct: 0 };
-
-      const updatedTotal = existing.total + stats.total;
-      const updatedCorrect = existing.correct + stats.correct;
-      const updatedXpDiscipline = existing.xp + stats.correct * 10;
-      const accuracyRatio = updatedTotal > 0 ? updatedCorrect / updatedTotal : 0;
-      const masteryStatus = computeMasteryStatus(updatedTotal, accuracyRatio);
-
-      return {
-        user_id: userId,
-        category,
-        xp_earned: updatedXpDiscipline,
-        total_answered: updatedTotal,
-        total_correct: updatedCorrect,
-        mastery_status: masteryStatus,
-        last_practiced_at: new Date().toISOString(),
-      };
-    });
-
-    await supabase.from("user_discipline_progress").upsert(upsertRows, {
+  if (disciplineUpsertRows.length > 0) {
+    await supabase.from("user_discipline_progress").upsert(disciplineUpsertRows, {
       onConflict: "user_id,category",
     });
   }
@@ -380,6 +409,7 @@ async function finalizeSessionAndProgress(sessionId: string, userId: string) {
     sessionXpEarned,
     questBonusXp,
     streakFreezeApplied,
+    disciplineLevelUps,
     dailyQuest,
     dailyQuestCompleted: questProgressAfterSession.completed,
     dailyQuestAlreadyRewarded: questAlreadyRewarded,
@@ -524,6 +554,7 @@ export async function POST(request: NextRequest) {
         xpEarned: final.sessionXpEarned,
         questBonusXp: final.questBonusXp,
         streakFreezeApplied: final.streakFreezeApplied,
+        disciplineLevelUps: final.disciplineLevelUps,
         dailyQuest: {
           id: final.dailyQuest.id,
           title: final.dailyQuest.title,

@@ -7,6 +7,7 @@ import { startDailyPractice } from "@/app/practice/actions";
 import { ASSESSMENT_CATEGORIES, type AssessmentCategory } from "@/lib/assessment/types";
 import { dueInMs, isReviewDueNow } from "@/lib/practice/review-schedule";
 import { computeDailyQuestProgress, getDailyQuest } from "@/lib/practice/daily-quest";
+import { computeDisciplineLevelProgress } from "@/lib/practice/levels";
 import { PracticePrewarm } from "./PracticePrewarm";
 
 function isoToday(): string {
@@ -178,15 +179,20 @@ export default async function DashboardPage({
     const total = row?.total_answered || 0;
     const correct = row?.total_correct || 0;
     const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
+    const xp = row?.xp_earned || 0;
+    const levelProgress = computeDisciplineLevelProgress(xp);
 
     return {
       category,
-      xp: row?.xp_earned || 0,
+      xp,
       total,
       correct,
       accuracy,
       mastery: row?.mastery_status || "Emerging",
-      progressPercent: Math.max(8, Math.min(100, Math.round(((row?.xp_earned || 0) / 600) * 100))),
+      level: levelProgress.level,
+      xpIntoLevel: levelProgress.xpIntoLevel,
+      xpNeededForNextLevel: levelProgress.xpNeededForNextLevel,
+      progressPercent: Math.max(6, levelProgress.progressPercent),
     };
   });
 
@@ -272,6 +278,7 @@ export default async function DashboardPage({
     (sum: number, item: (typeof disciplineList)[number]) => sum + item.xp,
     0
   );
+  const overallLevelProgress = computeDisciplineLevelProgress(totalDisciplineXp);
   const now = new Date();
   const missedQueue = ((missedQueueRows || []) as Array<{
     id?: unknown;
@@ -710,6 +717,9 @@ export default async function DashboardPage({
                     <p className="mt-1 text-xs text-muted">
                       {item.correct}/{item.total || 0} correct · {item.accuracy}% accuracy · {item.xp} XP
                     </p>
+                    <p className="mt-1 text-xs text-[#d5d8de]">
+                      Level {item.level} · {item.xpIntoLevel}/{item.xpNeededForNextLevel} XP to next
+                    </p>
                     <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
                       <div className="h-full rounded-full bg-accent" style={{ width: `${item.progressPercent}%` }} />
                     </div>
@@ -778,8 +788,17 @@ export default async function DashboardPage({
 
             <section className="rounded-2xl border border-border bg-[#16171a] p-6">
               <p className="text-xs uppercase tracking-[0.2em] text-muted">Progress totals</p>
-              <p className="mt-3 text-3xl font-semibold">{totalDisciplineXp} XP</p>
-              <p className="mt-2 text-sm text-muted">Total accumulated craft XP across all six disciplines.</p>
+              <p className="mt-3 text-3xl font-semibold">Level {overallLevelProgress.level}</p>
+              <p className="mt-2 text-sm text-muted">
+                {totalDisciplineXp} total XP · {overallLevelProgress.xpIntoLevel}/
+                {overallLevelProgress.xpNeededForNextLevel} toward next level
+              </p>
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-accent"
+                  style={{ width: `${Math.max(6, overallLevelProgress.progressPercent)}%` }}
+                />
+              </div>
             </section>
             <section className="rounded-2xl border border-border bg-[#16171a] p-6">
               <div className="mb-3 flex items-center justify-between gap-3">

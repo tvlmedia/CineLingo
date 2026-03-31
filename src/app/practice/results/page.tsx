@@ -74,6 +74,11 @@ function readLessonPlanMeta(value: unknown): {
   dailyQuestRewardGranted: boolean;
   dailyQuestBonusXp: number;
   streakFreezeApplied: boolean;
+  disciplineLevelUps: Array<{
+    category: AssessmentCategory;
+    fromLevel: number;
+    toLevel: number;
+  }>;
 } {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {
@@ -81,15 +86,37 @@ function readLessonPlanMeta(value: unknown): {
       dailyQuestRewardGranted: false,
       dailyQuestBonusXp: 0,
       streakFreezeApplied: false,
+      disciplineLevelUps: [],
     };
   }
 
   const row = value as Record<string, unknown>;
+  const rawLevelUps = Array.isArray(row.disciplineLevelUps) ? row.disciplineLevelUps : [];
+  const disciplineLevelUps = rawLevelUps
+    .map((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
+      const r = entry as Record<string, unknown>;
+      const categoryRaw = typeof r.category === "string" ? r.category : "";
+      if (!isAssessmentCategory(categoryRaw)) return null;
+
+      const fromLevel = Number(r.fromLevel || 0);
+      const toLevel = Number(r.toLevel || 0);
+      if (!Number.isFinite(fromLevel) || !Number.isFinite(toLevel) || toLevel <= fromLevel) return null;
+
+      return {
+        category: categoryRaw,
+        fromLevel,
+        toLevel,
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+
   return {
     dailyQuestTitle: typeof row.dailyQuestTitle === "string" ? row.dailyQuestTitle : "",
     dailyQuestRewardGranted: Boolean(row.dailyQuestRewardGranted),
     dailyQuestBonusXp: Number(row.dailyQuestBonusXp || 0),
     streakFreezeApplied: Boolean(row.streakFreezeApplied),
+    disciplineLevelUps,
   };
 }
 
@@ -260,6 +287,21 @@ export default async function PracticeResultsPage({
               <p className="mt-1 text-sm text-[#f1debc]">
                 Streak freeze applied: your streak was protected for one missed day.
               </p>
+            ) : null}
+            {lessonMeta.disciplineLevelUps.length > 0 ? (
+              <div className="mt-2 rounded-xl border border-border bg-[#1b1c20] px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.16em] text-muted">Discipline level up</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {lessonMeta.disciplineLevelUps.map((entry) => (
+                    <span
+                      key={`${entry.category}-${entry.fromLevel}-${entry.toLevel}`}
+                      className="rounded-full border border-border bg-[#1f2126] px-3 py-1 text-xs text-[#f1debc]"
+                    >
+                      {entry.category}: Lv {entry.fromLevel} → Lv {entry.toLevel}
+                    </span>
+                  ))}
+                </div>
+              </div>
             ) : null}
             {strongestToday ? (
               <p className="mt-2 text-sm text-muted">Strongest area today: {strongestToday}</p>
