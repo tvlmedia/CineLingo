@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 type PracticeQuestionView = {
@@ -45,6 +45,7 @@ export function PracticeRunner({
   const [localQuestions, setLocalQuestions] = useState(questions);
   const [currentIndex, setCurrentIndex] = useState(initialIndex(questions, initialQuestionOrder));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [queuedNextQuestionOrder, setQueuedNextQuestionOrder] = useState<number | null>(null);
   const [reportStatusByOrder, setReportStatusByOrder] = useState<
     Record<number, "idle" | "sending" | "done" | "error">
   >({});
@@ -74,6 +75,19 @@ export function PracticeRunner({
   );
 
   const progressPercent = Math.round((answeredCount / localQuestions.length) * 100);
+  const correctCount = useMemo(
+    () => localQuestions.filter((question) => question.isCorrect === true).length,
+    [localQuestions]
+  );
+  const sessionCombo = useMemo(() => {
+    const ordered = [...localQuestions].sort((a, b) => a.questionOrder - b.questionOrder);
+    let combo = 0;
+    for (const row of ordered) {
+      if (row.isCorrect === true) combo += 1;
+      if (row.isCorrect === false) combo = 0;
+    }
+    return combo;
+  }, [localQuestions]);
 
   const currentFeedback = current ? feedbackByOrder[current.questionOrder] || null : null;
   const currentReportStatus = current
@@ -111,6 +125,13 @@ export function PracticeRunner({
 
   async function submitCurrentAnswer() {
     if (!current) return;
+    if (currentFeedback) {
+      moveToNextQuestion(queuedNextQuestionOrder);
+      setQueuedNextQuestionOrder(null);
+      setErrorMessage(null);
+      return;
+    }
+
     if (!current.selectedOptionId) {
       setErrorMessage("Select an answer first.");
       return;
@@ -170,7 +191,7 @@ export function PracticeRunner({
           return;
         }
 
-        moveToNextQuestion(
+        setQueuedNextQuestionOrder(
           typeof payload.nextQuestionOrder === "number" ? payload.nextQuestionOrder : null
         );
       } catch {
@@ -178,6 +199,39 @@ export function PracticeRunner({
       }
     });
   }
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (!current) return;
+      if (event.repeat) return;
+
+      const target = event.target as HTMLElement | null;
+      const tag = String(target?.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select") {
+        return;
+      }
+
+      if (event.key === "Enter") {
+        if (!currentFeedback && !current.selectedOptionId) return;
+        event.preventDefault();
+        void submitCurrentAnswer();
+        return;
+      }
+
+      if (currentFeedback) return;
+
+      if (event.key === "1" || event.key === "2" || event.key === "3" || event.key === "4") {
+        const optionIndex = Number(event.key) - 1;
+        const option = current.options[optionIndex];
+        if (!option) return;
+        event.preventDefault();
+        updateSelectedOption(option.id);
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [current, currentFeedback, queuedNextQuestionOrder, submitCurrentAnswer, updateSelectedOption]);
 
   async function reportCurrentQuestion() {
     if (!current || !currentFeedback) return;
@@ -235,6 +289,22 @@ export function PracticeRunner({
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-white/10">
           <div className="h-full rounded-full bg-accent" style={{ width: `${progressPercent}%` }} />
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+          <div className="rounded-lg border border-border bg-[#1b1c20] px-3 py-2">
+            <p className="text-[11px] uppercase tracking-[0.14em] text-muted">Answered</p>
+            <p className="mt-1 text-sm font-semibold">
+              {answeredCount}/{localQuestions.length}
+            </p>
+          </div>
+          <div className="rounded-lg border border-border bg-[#1b1c20] px-3 py-2">
+            <p className="text-[11px] uppercase tracking-[0.14em] text-muted">Correct</p>
+            <p className="mt-1 text-sm font-semibold">{correctCount}</p>
+          </div>
+          <div className="rounded-lg border border-border bg-[#1b1c20] px-3 py-2">
+            <p className="text-[11px] uppercase tracking-[0.14em] text-muted">Current combo</p>
+            <p className="mt-1 text-sm font-semibold">x{sessionCombo}</p>
+          </div>
         </div>
       </div>
 
@@ -314,17 +384,21 @@ export function PracticeRunner({
       ) : null}
 
       <div className="mt-5 flex items-center justify-between gap-3">
-        <p className="text-xs text-muted">Short daily session. Immediate craft feedback.</p>
+        <p className="text-xs text-muted">
+          Short daily session. Immediate craft feedback. Tip: use keys 1-4 + Enter.
+        </p>
         <button
           onClick={submitCurrentAnswer}
-          disabled={isPending || !current.selectedOptionId}
+          disabled={isPending || (!currentFeedback && !current.selectedOptionId)}
           className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-[#13100a] disabled:opacity-50"
         >
           {isPending
             ? "Saving..."
-            : current.questionOrder === localQuestions.length
-              ? "Finish session"
-              : "Check and continue"}
+            : currentFeedback
+              ? current.questionOrder === localQuestions.length
+                ? "Finish session"
+                : "Continue"
+              : "Check answer"}
         </button>
       </div>
     </div>
