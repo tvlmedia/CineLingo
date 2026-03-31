@@ -292,23 +292,71 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
   };
 
   if (mode === "ai_only") {
-    if (aiSelected.length < sessionTargetCount) {
-      if (aiInsertFailed) {
-        redirect(`/dashboard?error=practice_ai_storage_unavailable`);
-      }
-      redirect(`/dashboard?error=practice_ai_unavailable`);
-    }
+    if (aiSelected.length >= sessionTargetCount) {
+      selected = aiSelected.slice(0, sessionTargetCount);
+      source = "daily_ai";
+      plan = {
+        ...plan,
+        generator: "openai",
+        prewarmedCount: prewarmedQuestions.length,
+        liveGeneratedCount: aiPersistedQuestions.length,
+        aiGeneratedCount: selected.length,
+        fallbackCount: 0,
+      };
+    } else {
+      // AI-only mode should never hard-fail for users when bank fallback is available.
+      // If AI quality/volume is insufficient, gracefully switch to adaptive bank questions.
+      const { data: bankData, error: bankError } = await supabase
+        .from("assessment_questions")
+        .select(
+          "id, key, category, subtopic, difficulty, question_type, role_relevance, prompt, options, explanation"
+        )
+        .eq("is_active", true);
 
-    selected = aiSelected.slice(0, sessionTargetCount);
-    source = "daily_ai";
-    plan = {
-      ...plan,
-      generator: "openai",
-      prewarmedCount: prewarmedQuestions.length,
-      liveGeneratedCount: aiPersistedQuestions.length,
-      aiGeneratedCount: selected.length,
-      fallbackCount: 0,
-    };
+      if (bankError) {
+        if (aiInsertFailed) {
+          redirect(`/dashboard?error=practice_ai_storage_unavailable`);
+        }
+        redirect(`/dashboard?error=practice_ai_unavailable`);
+      }
+
+      const fallbackBankQuestions = mapRawRowsToPracticeQuestions((bankData || []) as RawQuestionRow[]).filter(
+        (row) => !blockedQuestionIds.has(row.id)
+      );
+
+      if (fallbackBankQuestions.length < sessionTargetCount) {
+        if (aiInsertFailed) {
+          redirect(`/dashboard?error=practice_ai_storage_unavailable`);
+        }
+        redirect(`/dashboard?error=practice_questions_unavailable`);
+      }
+
+      const fallback = buildAdaptiveDailyLesson(
+        fallbackBankQuestions,
+        learningProfile,
+        missedQuestionIds,
+        sessionTargetCount
+      );
+
+      if (fallback.questions.length < sessionTargetCount) {
+        if (aiInsertFailed) {
+          redirect(`/dashboard?error=practice_ai_storage_unavailable`);
+        }
+        redirect(`/dashboard?error=practice_start_failed`);
+      }
+
+      selected = fallback.questions;
+      source = aiSelected.length > 0 ? "daily_ai_hybrid" : "daily";
+      plan = {
+        ...plan,
+        generator: "openai_fallback_bank",
+        prewarmedCount: prewarmedQuestions.length,
+        liveGeneratedCount: aiPersistedQuestions.length,
+        aiGeneratedCount: aiSelected.length,
+        fallbackCount: selected.length,
+        aiFallbackReason: aiInsertFailed ? "ai_storage_unavailable" : "ai_quality_unavailable",
+      };
+    }
   } else if (mode === "recovery") {
     if (bankQuestions.length < sessionTargetCount) {
       redirect(`/dashboard?error=practice_questions_unavailable`);
