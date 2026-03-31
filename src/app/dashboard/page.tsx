@@ -101,6 +101,35 @@ export default async function DashboardPage({
         .maybeSingle(),
     ]);
 
+  const friendIds = Array.from(
+    new Set(
+      ((socialRows || []) as Array<{ user_a?: unknown; user_b?: unknown }>)
+        .map((row) => {
+          const userA = typeof row.user_a === "string" ? row.user_a : "";
+          const userB = typeof row.user_b === "string" ? row.user_b : "";
+          if (!userA || !userB) return "";
+          return userA === user.id ? userB : userA;
+        })
+        .filter((value) => value.length > 0)
+    )
+  );
+
+  const leaderboardUserIds = Array.from(new Set([user.id, ...friendIds]));
+  const [{ data: leaderboardXpRows }, { data: leaderboardProfiles }] =
+    leaderboardUserIds.length > 0
+      ? await Promise.all([
+          supabase
+            .from("user_daily_progress")
+            .select("user_id, xp_earned, day_date")
+            .in("user_id", leaderboardUserIds)
+            .gte("day_date", weekStartIso),
+          supabase
+            .from("profiles")
+            .select("id, full_name, username, avatar_url")
+            .in("id", leaderboardUserIds),
+        ])
+      : [{ data: [] }, { data: [] }];
+
   const mappedDiscipline = new Map<AssessmentCategory, DisciplineRow>();
   (disciplineRows || []).forEach((row) => {
     const category = toCategory(String(row.category || ""));
@@ -171,6 +200,44 @@ export default async function DashboardPage({
   const hasInProgress = Boolean(inProgressSession?.id);
   const canPrewarmAi = Boolean(process.env.OPENAI_API_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY);
   const friendsCount = socialRows?.length || 0;
+  const weeklyXpByUser = new Map<string, number>();
+  ((leaderboardXpRows || []) as Array<{ user_id?: unknown; xp_earned?: unknown }>).forEach((row) => {
+    const userId = typeof row.user_id === "string" ? row.user_id : "";
+    if (!userId) return;
+    const current = weeklyXpByUser.get(userId) || 0;
+    weeklyXpByUser.set(userId, current + Number(row.xp_earned || 0));
+  });
+
+  const profileByUserId = new Map<
+    string,
+    { fullName: string; username: string; avatarUrl: string }
+  >();
+  ((leaderboardProfiles || []) as Array<{ id?: unknown; full_name?: unknown; username?: unknown; avatar_url?: unknown }>).forEach((row) => {
+    const id = typeof row.id === "string" ? row.id : "";
+    if (!id) return;
+    profileByUserId.set(id, {
+      fullName: typeof row.full_name === "string" ? row.full_name : "",
+      username: typeof row.username === "string" ? row.username : "",
+      avatarUrl: typeof row.avatar_url === "string" ? row.avatar_url : "",
+    });
+  });
+
+  const leaderboardEntries = leaderboardUserIds
+    .map((id) => {
+      const p = profileByUserId.get(id);
+      const name = p?.fullName || p?.username || (id === user.id ? "You" : "Filmmaker");
+      const username = p?.username || "";
+      return {
+        id,
+        name,
+        username,
+        avatarUrl: p?.avatarUrl || "",
+        xp: weeklyXpByUser.get(id) || 0,
+      };
+    })
+    .sort((a, b) => b.xp - a.xp)
+    .slice(0, 8);
+
   const totalDisciplineXp = disciplineList.reduce(
     (sum: number, item: (typeof disciplineList)[number]) => sum + item.xp,
     0
@@ -540,6 +607,49 @@ export default async function DashboardPage({
               <p className="text-xs uppercase tracking-[0.2em] text-muted">Progress totals</p>
               <p className="mt-3 text-3xl font-semibold">{totalDisciplineXp} XP</p>
               <p className="mt-2 text-sm text-muted">Total accumulated craft XP across all six disciplines.</p>
+            </section>
+            <section className="rounded-2xl border border-border bg-[#16171a] p-6">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-xs uppercase tracking-[0.2em] text-muted">Crew leaderboard (7d)</p>
+                <span className="text-xs text-muted">{leaderboardEntries.length} active</span>
+              </div>
+
+              {leaderboardEntries.length > 0 ? (
+                <div className="space-y-2">
+                  {leaderboardEntries.map((entry, index) => (
+                    <div key={entry.id} className="flex items-center justify-between gap-3 rounded-lg border border-border bg-[#1b1c20] px-3 py-2.5">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <span className="w-5 text-xs text-muted">{index + 1}</span>
+                        {entry.avatarUrl ? (
+                          <img
+                            src={entry.avatarUrl}
+                            alt={entry.name}
+                            className="h-7 w-7 rounded-full border border-border object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-7 w-7 items-center justify-center rounded-full border border-border bg-[#1f2126] text-xs font-semibold">
+                            {entry.name.slice(0, 1).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold">
+                            {entry.name}
+                            {entry.id === user.id ? (
+                              <span className="ml-1 text-xs text-muted">(You)</span>
+                            ) : null}
+                          </p>
+                          {entry.username ? (
+                            <p className="truncate text-xs text-muted">@{entry.username}</p>
+                          ) : null}
+                        </div>
+                      </div>
+                      <p className="text-sm font-semibold text-[#e4d2a4]">{entry.xp} XP</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted">No crew XP data yet this week.</p>
+              )}
             </section>
             {lastPracticeSession?.coach_summary ? (
               <section className="rounded-2xl border border-border bg-[#16171a] p-6">
