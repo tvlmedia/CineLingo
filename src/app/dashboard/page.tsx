@@ -392,7 +392,7 @@ export default async function DashboardPage({
                     : error === "practice_ai_storage_unavailable"
                       ? "AI sessions need Supabase service role key. Add SUPABASE_SERVICE_ROLE_KEY in Vercel."
                     : error === "practice_ai_unavailable"
-                      ? "AI session could not generate enough quality questions right now. Try again."
+                      ? "Strict AI coach mode could not generate enough valid questions right now. Try again in a moment."
                     : error === "practice_questions_unavailable"
                       ? "No valid questions available right now."
                       : "Something went wrong while starting practice."}
@@ -475,6 +475,7 @@ export default async function DashboardPage({
             <form action={startDailyPractice} className="pointer-events-auto">
               <input type="hidden" name="forceNew" value="1" />
               <input type="hidden" name="mode" value="ai_only" />
+              <input type="hidden" name="strictAi" value="1" />
               <button
                 type="submit"
                 className="rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]"

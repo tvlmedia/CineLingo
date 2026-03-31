@@ -195,6 +195,7 @@ export async function generateAIDailyQuestions(input: {
   learningProfile: LearningProfile;
   targetCount: number;
   timeoutMs?: number;
+  attempts?: number;
 }): Promise<PracticeQuestion[]> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return [];
@@ -203,61 +204,96 @@ export async function generateAIDailyQuestions(input: {
   const { learningProfile, targetCount } = input;
   const timeoutMs =
     typeof input.timeoutMs === "number" && input.timeoutMs > 0 ? Math.floor(input.timeoutMs) : 2400;
+  const attempts =
+    typeof input.attempts === "number" && Number.isFinite(input.attempts)
+      ? Math.max(1, Math.min(4, Math.floor(input.attempts)))
+      : 1;
   const weakest = learningProfile.weakestDisciplines.slice(0, 2);
   const strongest = learningProfile.strongestDisciplines.slice(0, 2);
   const accuracy = Number(learningProfile.recentAccuracy || 0);
 
-  const instruction = [
-    "Generate personalized cinematography MCQ questions.",
-    "Return strict JSON only with shape:",
-    '{ "questions": [{ "category": "...", "subtopic": "...", "difficulty": "foundation|core|advanced", "questionType": "technical|interpretive", "roleRelevance": ["dop"], "prompt": "...", "choices": ["...","...","...","..."], "correctIndex": 0, "explanation": "..." }] }',
-    `Generate exactly ${targetCount} questions.`,
-    `Allowed categories only: ${ASSESSMENT_CATEGORIES.join(", ")}.`,
-    "CRITICAL: only produce objective, factual, technically verifiable questions with one clear correct answer.",
-    "Do not produce taste/style/preference questions where multiple answers can be valid.",
-    "Avoid ranking-style prompts where more than one option can be defensible (e.g. 'most significant factor').",
-    "Prefer definition-based, standards-based, or numeric/mechanical cause-effect questions.",
-    "If a prompt can have multiple valid answers in practice, do not include it.",
-    "All choices must be unique. Exactly one correct choice. The other 3 must be clearly false on factual grounds.",
-    "Question type must be technical.",
-    "Questions must be concise and set-practical for professional filmmakers.",
-    `User role focus: ${learningProfile.roleFocus || "not specified"}.`,
-    `Weakest disciplines (prioritize): ${weakest.join(", ") || "none"}.`,
-    `Strongest disciplines (include 1-2 stretch items): ${strongest.join(", ") || "none"}.`,
-    `Weak subtopics to target: ${learningProfile.weakSubtopics.join(", ") || "none"}.`,
-    `Recent accuracy ratio: ${accuracy.toFixed(2)}.`,
-  ].join("\n");
+  function buildInstruction(requestCount: number, attemptIndex: number): string {
+    const attemptHint =
+      attemptIndex === 0
+        ? "Attempt mode: strict-objective."
+        : "Attempt mode: strict-objective-retry. Use simpler factual mechanics if needed.";
 
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    let response: Response;
-    try {
-      response = await fetch("https://api.openai.com/v1/responses", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          input: instruction,
-          max_output_tokens: 1400,
-        }),
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    if (!response.ok) return [];
-
-    const payload = (await response.json()) as OpenAIResponseOutput;
-    const text = readOpenAIText(payload);
-    if (!text) return [];
-
-    return parseGeneratedQuestions(text, targetCount, accuracy);
-  } catch {
-    return [];
+    return [
+      "Generate personalized cinematography MCQ questions.",
+      "Return strict JSON only with shape:",
+      '{ "questions": [{ "category": "...", "subtopic": "...", "difficulty": "foundation|core|advanced", "questionType": "technical|interpretive", "roleRelevance": ["dop"], "prompt": "...", "choices": ["...","...","...","..."], "correctIndex": 0, "explanation": "..." }] }',
+      `Generate exactly ${requestCount} questions.`,
+      `Allowed categories only: ${ASSESSMENT_CATEGORIES.join(", ")}.`,
+      "CRITICAL: only produce objective, factual, technically verifiable questions with one clear correct answer.",
+      "Do not produce taste/style/preference questions where multiple answers can be valid.",
+      "Avoid ranking-style prompts where more than one option can be defensible (e.g. 'most significant factor').",
+      "Prefer definition-based, standards-based, or numeric/mechanical cause-effect questions.",
+      "If a prompt can have multiple valid answers in practice, do not include it.",
+      "All choices must be unique. Exactly one correct choice. The other 3 must be clearly false on factual grounds.",
+      "Question type must be technical.",
+      "Questions must be concise and set-practical for professional filmmakers.",
+      attemptHint,
+      `User role focus: ${learningProfile.roleFocus || "not specified"}.`,
+      `Weakest disciplines (prioritize): ${weakest.join(", ") || "none"}.`,
+      `Strongest disciplines (include 1-2 stretch items): ${strongest.join(", ") || "none"}.`,
+      `Weak subtopics to target: ${learningProfile.weakSubtopics.join(", ") || "none"}.`,
+      `Recent accuracy ratio: ${accuracy.toFixed(2)}.`,
+    ].join("\n");
   }
+
+  async function generateOnce(requestCount: number, attemptIndex: number): Promise<PracticeQuestion[]> {
+    const instruction = buildInstruction(requestCount, attemptIndex);
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      let response: Response;
+      try {
+        response = await fetch("https://api.openai.com/v1/responses", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            input: instruction,
+            max_output_tokens: 1600,
+          }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      if (!response.ok) return [];
+
+      const payload = (await response.json()) as OpenAIResponseOutput;
+      const text = readOpenAIText(payload);
+      if (!text) return [];
+
+      return parseGeneratedQuestions(text, requestCount, accuracy);
+    } catch {
+      return [];
+    }
+  }
+
+  const combined: PracticeQuestion[] = [];
+  const seenByPrompt = new Set<string>();
+
+  for (let attemptIndex = 0; attemptIndex < attempts; attemptIndex += 1) {
+    const remaining = Math.max(0, targetCount - combined.length);
+    if (remaining <= 0) break;
+
+    const generated = await generateOnce(remaining, attemptIndex);
+    for (const row of generated) {
+      const normalizedPrompt = normalizeForCompare(row.prompt);
+      if (!normalizedPrompt || seenByPrompt.has(normalizedPrompt)) continue;
+      seenByPrompt.add(normalizedPrompt);
+      combined.push(row);
+      if (combined.length >= targetCount) break;
+    }
+  }
+
+  return combined.slice(0, targetCount);
 }

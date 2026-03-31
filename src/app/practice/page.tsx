@@ -12,6 +12,30 @@ type PracticeSearchParams = {
   error?: string;
 };
 
+function readSessionMeta(value: unknown): {
+  mode: string;
+  strictAi: boolean;
+  generator: string;
+  aiFallbackReason: string;
+} {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {
+      mode: "",
+      strictAi: false,
+      generator: "",
+      aiFallbackReason: "",
+    };
+  }
+
+  const row = value as Record<string, unknown>;
+  return {
+    mode: typeof row.mode === "string" ? row.mode : "",
+    strictAi: Boolean(row.strictAi),
+    generator: typeof row.generator === "string" ? row.generator : "",
+    aiFallbackReason: typeof row.aiFallbackReason === "string" ? row.aiFallbackReason : "",
+  };
+}
+
 type PracticeAnswerRowRaw = {
   id: unknown;
   question_order: unknown;
@@ -128,7 +152,7 @@ export default async function PracticePage({
 
   const { data: session } = await supabase
     .from("practice_sessions")
-    .select("id, status, total_questions, source")
+    .select("id, status, total_questions, source, lesson_plan")
     .eq("id", sessionId)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -154,6 +178,27 @@ export default async function PracticePage({
   if (rows.length === 0) {
     redirect("/dashboard?error=practice_session_missing");
   }
+
+  const sessionMeta = readSessionMeta((session as { lesson_plan?: unknown } | null)?.lesson_plan ?? null);
+  const sourceLabel =
+    String(session.source || "") === "daily_ai"
+      ? "AI-generated"
+      : String(session.source || "") === "daily_ai_hybrid"
+        ? "AI + question bank"
+        : String(session.source || "") === "daily_recovery"
+          ? "Recovery sprint"
+          : "Question bank";
+
+  const sourceHint =
+    sessionMeta.mode === "ai_only" && String(session.source || "") !== "daily_ai"
+      ? sessionMeta.aiFallbackReason === "ai_storage_unavailable"
+        ? "AI storage write was unavailable, so fallback content was used."
+        : sessionMeta.strictAi
+          ? "AI-only strict mode had insufficient valid output this run."
+          : "AI-only request had insufficient valid AI questions this run."
+      : sessionMeta.generator === "openai_hybrid"
+        ? "Hybrid fill was used to complete the session."
+        : "";
 
   const runnerQuestions = rows
     .map((row) => {
@@ -195,15 +240,9 @@ export default async function PracticePage({
               <p className="text-xs uppercase tracking-[0.2em] text-muted">Daily Practice</p>
               <h1 className="mt-1 text-3xl font-semibold md:text-4xl">Cinematography Drill</h1>
               <p className="mt-1 text-xs text-muted">
-                Source:{" "}
-                {String(session.source || "") === "daily_ai"
-                  ? "AI-generated"
-                  : String(session.source || "") === "daily_ai_hybrid"
-                    ? "AI + question bank"
-                    : String(session.source || "") === "daily_recovery"
-                      ? "Recovery sprint"
-                    : "Question bank"}
+                Source: {sourceLabel}
               </p>
+              {sourceHint ? <p className="mt-1 text-xs text-[#f1debc]">{sourceHint}</p> : null}
             </div>
               <Link
                 href="/dashboard"

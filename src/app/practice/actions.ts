@@ -57,6 +57,10 @@ function parsePracticeStartMode(value: unknown): PracticeStartMode {
   return "adaptive";
 }
 
+function parseStrictAi(value: unknown): boolean {
+  return String(value || "").trim() === "1";
+}
+
 function uniqById(input: PracticeQuestion[]): PracticeQuestion[] {
   const seen = new Set<string>();
   const out: PracticeQuestion[] = [];
@@ -75,6 +79,7 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
   const supabase = await createClient();
   const forceNew = String(formData.get("forceNew") || "") === "1";
   const mode = parsePracticeStartMode(formData.get("mode"));
+  const strictAi = parseStrictAi(formData.get("strictAi"));
 
   if (mode === "ai_only" && !process.env.OPENAI_API_KEY) {
     redirect(`/dashboard?error=practice_ai_key_missing`);
@@ -240,7 +245,8 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
           mode === "ai_only"
             ? Math.max(targetAiCount, sessionTargetCount)
             : Math.max(targetAiCount, 6),
-        timeoutMs: mode === "ai_only" ? 5200 : 3200,
+        timeoutMs: mode === "ai_only" ? 9000 : 4200,
+        attempts: mode === "ai_only" ? 2 : 1,
       })
     : [];
 
@@ -302,8 +308,9 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
         liveGeneratedCount: aiPersistedQuestions.length,
         aiGeneratedCount: selected.length,
         fallbackCount: 0,
+        strictAi,
       };
-    } else if (aiSelected.length > 0) {
+    } else if (!strictAi && aiSelected.length > 0) {
       // AI-only mode: allow hybrid fill when we have at least some valid AI output.
       // Never silently degrade to 100% bank-only content in this mode.
       const { data: bankData, error: bankError } = await supabase
@@ -356,6 +363,7 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
         aiGeneratedCount: aiSelected.length,
         fallbackCount: needed,
         aiFallbackReason: aiInsertFailed ? "ai_storage_unavailable" : "ai_quality_unavailable",
+        strictAi,
       };
     } else {
       // Zero valid AI questions: keep AI-only honest and return explicit error.

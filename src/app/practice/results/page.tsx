@@ -337,6 +337,7 @@ export default async function PracticeResultsPage({
               <form action={startDailyPractice}>
                 <input type="hidden" name="forceNew" value="1" />
                 <input type="hidden" name="mode" value="ai_only" />
+                <input type="hidden" name="strictAi" value="1" />
                 <button className="rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]">
                   Start AI coach session
                 </button>
