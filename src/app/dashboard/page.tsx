@@ -5,6 +5,7 @@ import { Container } from "@/components/ui";
 import { startAssessment } from "@/app/onboarding/actions";
 import { startDailyPractice } from "@/app/practice/actions";
 import { ASSESSMENT_CATEGORIES, type AssessmentCategory } from "@/lib/assessment/types";
+import { dueInMs, isReviewDueNow } from "@/lib/practice/review-schedule";
 import { PracticePrewarm } from "./PracticePrewarm";
 
 function isoToday(): string {
@@ -39,7 +40,7 @@ export default async function DashboardPage({
   weekStart.setUTCDate(weekStart.getUTCDate() - 6);
   const weekStartIso = weekStart.toISOString().slice(0, 10);
 
-  const [{ data: profile }, { data: latestAssessment }, { data: inProgressSession }, { data: todayProgress }, { data: disciplineRows }, { data: lastPracticeSession }, { data: socialRows }, { data: weeklyRows }, { count: openMistakesCount }, { data: learningProfile }] =
+  const [{ data: profile }, { data: latestAssessment }, { data: inProgressSession }, { data: todayProgress }, { data: disciplineRows }, { data: lastPracticeSession }, { data: socialRows }, { data: weeklyRows }, { data: missedQueueRows }, { data: learningProfile }] =
     await Promise.all([
       supabase
         .from("profiles")
@@ -91,9 +92,10 @@ export default async function DashboardPage({
         .gte("day_date", weekStartIso),
       supabase
         .from("user_missed_questions")
-        .select("id", { count: "exact", head: true })
+        .select("id, miss_count, correct_review_count, last_missed_at, last_reviewed_at")
         .eq("user_id", user.id)
-        .eq("status", "open"),
+        .eq("status", "open")
+        .limit(200),
       supabase
         .from("user_learning_profiles")
         .select("weak_subtopics, weakest_disciplines, strongest_disciplines")
@@ -242,9 +244,40 @@ export default async function DashboardPage({
     (sum: number, item: (typeof disciplineList)[number]) => sum + item.xp,
     0
   );
-  const openMistakes = Number(openMistakesCount || 0);
+  const now = new Date();
+  const missedQueue = ((missedQueueRows || []) as Array<{
+    id?: unknown;
+    miss_count?: unknown;
+    correct_review_count?: unknown;
+    last_missed_at?: unknown;
+    last_reviewed_at?: unknown;
+  }>).map((row) => {
+    const state = {
+      missCount: Number(row.miss_count || 0),
+      correctReviewCount: Number(row.correct_review_count || 0),
+      lastMissedAt: typeof row.last_missed_at === "string" ? row.last_missed_at : null,
+      lastReviewedAt: typeof row.last_reviewed_at === "string" ? row.last_reviewed_at : null,
+    };
+    return {
+      id: typeof row.id === "string" ? row.id : "",
+      dueNow: isReviewDueNow(state, now),
+      dueInMs: dueInMs(state, now),
+    };
+  });
+  const openMistakes = missedQueue.length;
+  const dueNowMistakes = missedQueue.filter((row) => row.dueNow).length;
+  const nextDueMs = missedQueue
+    .map((row) => row.dueInMs)
+    .filter((value) => value > 0)
+    .sort((a, b) => a - b)[0];
+  const nextDueLabel =
+    typeof nextDueMs === "number"
+      ? nextDueMs <= 1000 * 60 * 60
+        ? `${Math.ceil(nextDueMs / (1000 * 60))}m`
+        : `${Math.ceil(nextDueMs / (1000 * 60 * 60))}h`
+      : null;
   const missionPracticeDone = sessionsToday > 0;
-  const missionReviewDone = openMistakes === 0;
+  const missionReviewDone = dueNowMistakes === 0;
   const missionGoalDone = dailyGoalMet;
   const missionDoneCount =
     (missionPracticeDone ? 1 : 0) + (missionReviewDone ? 1 : 0) + (missionGoalDone ? 1 : 0);
@@ -363,7 +396,11 @@ export default async function DashboardPage({
               href="/practice/review"
               className="pointer-events-auto rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]"
             >
-              Review mistakes {openMistakes > 0 ? `(${openMistakes})` : ""}
+              {dueNowMistakes > 0
+                ? `Review due now (${dueNowMistakes})`
+                : openMistakes > 0
+                  ? `Review queue (${openMistakes})`
+                  : "Review mistakes"}
             </Link>
 
             {hasInProgress ? (
@@ -452,7 +489,11 @@ export default async function DashboardPage({
               <p className="text-xs uppercase tracking-[0.16em] text-muted">Mission 2</p>
               <p className="mt-2 font-semibold">Review mistakes queue</p>
               <p className="mt-1 text-xs text-muted">
-                {missionReviewDone ? "No open mistakes" : `${openMistakes} open review item(s)`}
+                {missionReviewDone
+                  ? openMistakes > 0
+                    ? `No urgent items · ${openMistakes} in queue`
+                    : "No open mistakes"
+                  : `${dueNowMistakes} due now${nextDueLabel ? ` · next in ${nextDueLabel}` : ""}`}
               </p>
               <span
                 className={`mt-3 inline-flex rounded-full border px-2.5 py-1 text-xs ${
@@ -511,6 +552,11 @@ export default async function DashboardPage({
                   {weakSubtopics.length > 0 ? (
                     <p className="mt-3 text-sm text-muted">
                       Weak subtopics: {weakSubtopics.join(" · ")}
+                    </p>
+                  ) : null}
+                  {dueNowMistakes > 0 ? (
+                    <p className="mt-2 text-sm text-[#e4d2a4]">
+                      {dueNowMistakes} review item(s) due now from your mistake queue.
                     </p>
                   ) : null}
                 </>

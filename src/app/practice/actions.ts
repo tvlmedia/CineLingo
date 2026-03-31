@@ -10,6 +10,7 @@ import { buildAdaptiveDailyLesson } from "@/lib/practice/lesson-generator";
 import { buildLearningProfile, saveLearningProfile, type LearningProfile } from "@/lib/practice/profile";
 import { generateAIDailyQuestions } from "@/lib/practice/ai-generator";
 import { loadBlockedQuestionIdsForPractice } from "@/lib/practice/question-quality";
+import { dueInMs, isReviewDueNow } from "@/lib/practice/review-schedule";
 import {
   isQuestionRowFresh,
   mapRawRowsToPracticeQuestions,
@@ -136,14 +137,44 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
 
   const { data: missedRows } = await supabase
     .from("user_missed_questions")
-    .select("question_id")
+    .select("question_id, miss_count, correct_review_count, last_missed_at, last_reviewed_at")
     .eq("user_id", user.id)
     .eq("status", "open")
-    .order("last_missed_at", { ascending: false })
-    .limit(16);
+    .limit(60);
 
+  const now = new Date();
   const missedQuestionIds = (missedRows || [])
-    .map((row) => String(row.question_id || ""))
+    .map((row) => ({
+      questionId: String(row.question_id || ""),
+      missCount: Number(row.miss_count || 0),
+      dueNow: isReviewDueNow(
+        {
+          missCount: Number(row.miss_count || 0),
+          correctReviewCount: Number(row.correct_review_count || 0),
+          lastMissedAt: typeof row.last_missed_at === "string" ? row.last_missed_at : null,
+          lastReviewedAt: typeof row.last_reviewed_at === "string" ? row.last_reviewed_at : null,
+        },
+        now
+      ),
+      dueInMs: dueInMs(
+        {
+          missCount: Number(row.miss_count || 0),
+          correctReviewCount: Number(row.correct_review_count || 0),
+          lastMissedAt: typeof row.last_missed_at === "string" ? row.last_missed_at : null,
+          lastReviewedAt: typeof row.last_reviewed_at === "string" ? row.last_reviewed_at : null,
+        },
+        now
+      ),
+    }))
+    .filter((row) => row.questionId.length > 0)
+    .sort((a, b) => {
+      if (a.dueNow !== b.dueNow) return a.dueNow ? -1 : 1;
+      if (a.dueInMs !== b.dueInMs) return a.dueInMs - b.dueInMs;
+      if (a.missCount !== b.missCount) return b.missCount - a.missCount;
+      return a.questionId.localeCompare(b.questionId);
+    })
+    .map((row) => row.questionId)
+    .slice(0, 20)
     .filter((value) => value.length > 0);
   const blockedQuestionIds = await loadBlockedQuestionIdsForPractice(supabase, user.id);
   const adminSupabase = createAdminClient();

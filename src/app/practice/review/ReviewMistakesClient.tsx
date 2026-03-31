@@ -12,6 +12,11 @@ type ReviewQuestion = {
   missCount: number;
   correctedCount: number;
   lastMissedAt: string | null;
+  lastReviewedAt: string | null;
+  dueNow: boolean;
+  nextReviewAt: string;
+  dueLabel: string;
+  dueInMs: number;
 };
 
 type Feedback = {
@@ -110,7 +115,23 @@ export function ReviewMistakesClient({ questions }: { questions: ReviewQuestion[
 
       <p className="mb-2 text-xs uppercase tracking-[0.18em] text-muted">{current.category}</p>
       <h2 className="mb-3 text-2xl font-semibold leading-tight md:text-3xl">{current.prompt}</h2>
-      <p className="mb-4 text-xs text-muted">Missed {current.missCount}x previously</p>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="rounded-full border border-border bg-[#1b1c20] px-2.5 py-1 text-xs text-muted">
+          Missed {current.missCount}x
+        </span>
+        <span className="rounded-full border border-border bg-[#1b1c20] px-2.5 py-1 text-xs text-muted">
+          Recovery stage {Math.min(3, Math.max(0, current.correctedCount))}/3
+        </span>
+        <span
+          className={`rounded-full border px-2.5 py-1 text-xs ${
+            current.dueNow
+              ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
+              : "border-border bg-[#1b1c20] text-muted"
+          }`}
+        >
+          {current.dueLabel}
+        </span>
+      </div>
 
       {error ? (
         <p className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</p>
@@ -160,7 +181,9 @@ export function ReviewMistakesClient({ questions }: { questions: ReviewQuestion[
       ) : null}
 
       <div className="mt-5 flex items-center justify-between gap-3">
-        <p className="text-xs text-muted">Correctly answered review items are removed from open mistakes.</p>
+        <p className="text-xs text-muted">
+          Questions need 3 successful recoveries to leave your active review queue.
+        </p>
         {feedback ? (
           <button
             onClick={nextQuestion}

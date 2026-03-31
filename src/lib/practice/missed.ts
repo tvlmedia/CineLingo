@@ -1,3 +1,5 @@
+import { REVIEW_CORRECTS_TO_MASTER } from "@/lib/practice/review-schedule";
+
 export async function updateMissedQuestionProgress(params: {
   supabase: any;
   userId: string;
@@ -20,6 +22,7 @@ export async function updateMissedQuestionProgress(params: {
         .from("user_missed_questions")
         .update({
           miss_count: Number(existing.miss_count || 0) + 1,
+          correct_review_count: 0,
           status: "open",
           last_missed_at: now,
           updated_at: now,
@@ -47,11 +50,12 @@ export async function updateMissedQuestionProgress(params: {
   }
 
   const nextCorrected = Number(existing.correct_review_count || 0) + 1;
+  const nextStatus = nextCorrected >= REVIEW_CORRECTS_TO_MASTER ? "mastered" : "open";
   await supabase
     .from("user_missed_questions")
     .update({
       correct_review_count: nextCorrected,
-      status: nextCorrected >= 1 ? "mastered" : String(existing.status || "open"),
+      status: nextStatus,
       last_reviewed_at: now,
       updated_at: now,
     })

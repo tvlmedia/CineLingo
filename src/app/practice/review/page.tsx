@@ -4,12 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 import { parseQuestionOptions } from "@/lib/assessment/engine";
 import { Container } from "@/components/ui";
 import { ReviewMistakesClient } from "./ReviewMistakesClient";
+import { computeNextReviewAtIso, dueInMs, formatDueWindowLabel, isReviewDueNow } from "@/lib/practice/review-schedule";
 
 type MissedRowRaw = {
   id: unknown;
   miss_count: unknown;
   correct_review_count: unknown;
   last_missed_at: unknown;
+  last_reviewed_at: unknown;
   question:
     | {
         id?: unknown;
@@ -58,17 +60,27 @@ export default async function PracticeReviewPage() {
   const { data } = await supabase
     .from("user_missed_questions")
     .select(
-      "id, miss_count, correct_review_count, last_missed_at, question:assessment_questions(id, category, prompt, options, explanation)"
+      "id, miss_count, correct_review_count, last_missed_at, last_reviewed_at, question:assessment_questions(id, category, prompt, options, explanation)"
     )
     .eq("user_id", user.id)
     .eq("status", "open")
-    .order("last_missed_at", { ascending: false })
     .limit(80);
 
+  const now = new Date();
   const questions = ((data || []) as MissedRowRaw[])
     .map((row) => {
       const question = normalizeQuestion(row.question);
       if (!question) return null;
+
+      const missedState = {
+        missCount: Number(row.miss_count || 0),
+        correctReviewCount: Number(row.correct_review_count || 0),
+        lastMissedAt: typeof row.last_missed_at === "string" ? row.last_missed_at : null,
+        lastReviewedAt: typeof row.last_reviewed_at === "string" ? row.last_reviewed_at : null,
+      };
+      const nextReviewAt = computeNextReviewAtIso(missedState, now);
+      const nextDueInMs = dueInMs(missedState, now);
+      const dueNow = isReviewDueNow(missedState, now);
 
       return {
         missedId: typeof row.id === "string" ? row.id : question.id,
@@ -77,12 +89,25 @@ export default async function PracticeReviewPage() {
         prompt: question.prompt,
         explanation: question.explanation,
         options: question.options,
-        missCount: Number(row.miss_count || 0),
-        correctedCount: Number(row.correct_review_count || 0),
-        lastMissedAt: typeof row.last_missed_at === "string" ? row.last_missed_at : null,
+        missCount: missedState.missCount,
+        correctedCount: missedState.correctReviewCount,
+        lastMissedAt: missedState.lastMissedAt,
+        lastReviewedAt: missedState.lastReviewedAt,
+        dueNow,
+        nextReviewAt,
+        dueLabel: formatDueWindowLabel(nextDueInMs),
+        dueInMs: nextDueInMs,
       };
     })
-    .filter((row): row is NonNullable<typeof row> => Boolean(row));
+    .filter((row): row is NonNullable<typeof row> => Boolean(row))
+    .sort((a, b) => {
+      if (a.dueNow !== b.dueNow) return a.dueNow ? -1 : 1;
+      if (a.dueInMs !== b.dueInMs) return a.dueInMs - b.dueInMs;
+      if (a.missCount !== b.missCount) return b.missCount - a.missCount;
+      return String(a.lastMissedAt || "").localeCompare(String(b.lastMissedAt || ""));
+    });
+
+  const dueNowCount = questions.filter((row) => row.dueNow).length;
 
   return (
     <main className="min-h-screen py-8 md:py-10">
@@ -104,6 +129,11 @@ export default async function PracticeReviewPage() {
 
             <p className="mt-3 text-sm text-muted">
               Retry previously missed questions with immediate feedback and explanations.
+            </p>
+            <p className="mt-2 text-xs text-muted">
+              {dueNowCount > 0
+                ? `${dueNowCount} question(s) due right now`
+                : "No urgent reviews due right now. You can still clear upcoming items."}
             </p>
           </section>
 
