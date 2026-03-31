@@ -1,6 +1,7 @@
 import type { AssessmentCategory } from "@/lib/assessment/types";
 
 export const DAILY_PRACTICE_QUESTION_COUNT = 10;
+export const RECOVERY_SPRINT_QUESTION_COUNT = 6;
 export const DAILY_GOAL_XP_DEFAULT = 50;
 
 export const XP_RULES = {

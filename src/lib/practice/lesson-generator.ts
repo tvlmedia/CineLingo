@@ -11,6 +11,14 @@ export type DailyLessonPlan = {
   selectedQuestionIds: string[];
 };
 
+export type RecoverySprintPlan = {
+  totalQuestions: number;
+  dueNowUsed: number;
+  openQueueUsed: number;
+  adaptiveFillUsed: number;
+  selectedQuestionIds: string[];
+};
+
 function pickFromPool(
   pool: PracticeQuestion[],
   used: Set<string>,
@@ -119,6 +127,59 @@ export function buildAdaptiveDailyLesson(
       weakSecondary,
       stretchCategory,
       selectedQuestionIds: finalQuestions.map((q) => q.id),
+    },
+  };
+}
+
+export function buildRecoverySprintLesson(
+  allQuestions: PracticeQuestion[],
+  dueNowQuestionIds: string[],
+  openQueueQuestionIds: string[],
+  adaptiveFallback: PracticeQuestion[],
+  targetCount: number
+): { questions: PracticeQuestion[]; plan: RecoverySprintPlan } {
+  const byId = new Map(allQuestions.map((question) => [question.id, question]));
+  const selected: PracticeQuestion[] = [];
+  const used = new Set<string>();
+
+  const appendByIds = (ids: string[], limit: number): number => {
+    let count = 0;
+    for (const id of ids) {
+      if (count >= limit) break;
+      if (used.has(id)) continue;
+      const match = byId.get(id);
+      if (!match) continue;
+      used.add(id);
+      selected.push(match);
+      count += 1;
+    }
+    return count;
+  };
+
+  const dueNowUsed = appendByIds(dueNowQuestionIds, targetCount);
+  const openQueueUsed = appendByIds(openQueueQuestionIds, targetCount - selected.length);
+
+  let adaptiveFillUsed = 0;
+  if (selected.length < targetCount) {
+    for (const question of adaptiveFallback) {
+      if (selected.length >= targetCount) break;
+      if (used.has(question.id)) continue;
+      used.add(question.id);
+      selected.push(question);
+      adaptiveFillUsed += 1;
+    }
+  }
+
+  const questions = selected.slice(0, targetCount);
+
+  return {
+    questions,
+    plan: {
+      totalQuestions: targetCount,
+      dueNowUsed,
+      openQueueUsed,
+      adaptiveFillUsed,
+      selectedQuestionIds: questions.map((question) => question.id),
     },
   };
 }

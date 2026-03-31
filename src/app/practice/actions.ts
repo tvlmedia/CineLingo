@@ -6,7 +6,10 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ASSESSMENT_CATEGORIES, type AssessmentCategory } from "@/lib/assessment/types";
 import { buildShuffledOptionOrder } from "@/lib/practice/engine";
-import { buildAdaptiveDailyLesson } from "@/lib/practice/lesson-generator";
+import {
+  buildAdaptiveDailyLesson,
+  buildRecoverySprintLesson,
+} from "@/lib/practice/lesson-generator";
 import { buildLearningProfile, saveLearningProfile, type LearningProfile } from "@/lib/practice/profile";
 import { generateAIDailyQuestions } from "@/lib/practice/ai-generator";
 import { loadBlockedQuestionIdsForPractice } from "@/lib/practice/question-quality";
@@ -19,6 +22,7 @@ import {
 import {
   DAILY_GOAL_XP_DEFAULT,
   DAILY_PRACTICE_QUESTION_COUNT,
+  RECOVERY_SPRINT_QUESTION_COUNT,
   type PracticeQuestion,
 } from "@/lib/practice/types";
 
@@ -43,12 +47,13 @@ function normalizeStringList(value: unknown): string[] {
   return value.filter((entry): entry is string => typeof entry === "string");
 }
 
-type PracticeStartMode = "adaptive" | "ai_only" | "bank_only";
+type PracticeStartMode = "adaptive" | "ai_only" | "bank_only" | "recovery";
 
 function parsePracticeStartMode(value: unknown): PracticeStartMode {
   const raw = String(value || "").trim();
   if (raw === "ai_only") return "ai_only";
   if (raw === "bank_only") return "bank_only";
+  if (raw === "recovery") return "recovery";
   return "adaptive";
 }
 
@@ -143,7 +148,7 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
     .limit(60);
 
   const now = new Date();
-  const missedQuestionIds = (missedRows || [])
+  const prioritizedMissedRows = (missedRows || [])
     .map((row) => ({
       questionId: String(row.question_id || ""),
       missCount: Number(row.miss_count || 0),
@@ -172,10 +177,16 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
       if (a.dueInMs !== b.dueInMs) return a.dueInMs - b.dueInMs;
       if (a.missCount !== b.missCount) return b.missCount - a.missCount;
       return a.questionId.localeCompare(b.questionId);
-    })
+    });
+
+  const missedQuestionIds = prioritizedMissedRows
     .map((row) => row.questionId)
     .slice(0, 20)
     .filter((value) => value.length > 0);
+  const dueNowQuestionIds = prioritizedMissedRows
+    .filter((row) => row.dueNow)
+    .map((row) => row.questionId);
+  const openQueueQuestionIds = prioritizedMissedRows.map((row) => row.questionId);
   const blockedQuestionIds = await loadBlockedQuestionIdsForPractice(supabase, user.id);
   const adminSupabase = createAdminClient();
 
@@ -218,14 +229,16 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
     prewarmedRows.filter((row) => isQuestionRowFresh(row, PREWARM_MAX_AGE_MS, nowMs))
   ).filter((row) => !blockedQuestionIds.has(row.id));
 
-  const targetAiCount = Math.max(0, DAILY_PRACTICE_QUESTION_COUNT - prewarmedQuestions.length);
-  const shouldGenerateAi = mode !== "bank_only" && targetAiCount > 0;
+  const sessionTargetCount =
+    mode === "recovery" ? RECOVERY_SPRINT_QUESTION_COUNT : DAILY_PRACTICE_QUESTION_COUNT;
+  const targetAiCount = Math.max(0, sessionTargetCount - prewarmedQuestions.length);
+  const shouldGenerateAi = mode !== "bank_only" && mode !== "recovery" && targetAiCount > 0;
   const aiQuestions = shouldGenerateAi
     ? await generateAIDailyQuestions({
         learningProfile,
         targetCount:
           mode === "ai_only"
-            ? Math.max(targetAiCount, DAILY_PRACTICE_QUESTION_COUNT)
+            ? Math.max(targetAiCount, sessionTargetCount)
             : Math.max(targetAiCount, 6),
         timeoutMs: mode === "ai_only" ? 5200 : 3200,
       })
@@ -272,21 +285,21 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
   let source = "daily";
   let plan: Record<string, unknown> = {
     mode,
-    targetCount: DAILY_PRACTICE_QUESTION_COUNT,
+    targetCount: sessionTargetCount,
     weakPrimary: learningProfile.weakestDisciplines[0] || null,
     weakSecondary: learningProfile.weakestDisciplines[1] || null,
     weakSubtopics: learningProfile.weakSubtopics.slice(0, 4),
   };
 
   if (mode === "ai_only") {
-    if (aiSelected.length < DAILY_PRACTICE_QUESTION_COUNT) {
+    if (aiSelected.length < sessionTargetCount) {
       if (aiInsertFailed) {
         redirect(`/dashboard?error=practice_ai_storage_unavailable`);
       }
       redirect(`/dashboard?error=practice_ai_unavailable`);
     }
 
-    selected = aiSelected.slice(0, DAILY_PRACTICE_QUESTION_COUNT);
+    selected = aiSelected.slice(0, sessionTargetCount);
     source = "daily_ai";
     plan = {
       ...plan,
@@ -296,8 +309,8 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
       aiGeneratedCount: selected.length,
       fallbackCount: 0,
     };
-  } else {
-    if (bankQuestions.length < DAILY_PRACTICE_QUESTION_COUNT) {
+  } else if (mode === "recovery") {
+    if (bankQuestions.length < sessionTargetCount) {
       redirect(`/dashboard?error=practice_questions_unavailable`);
     }
 
@@ -305,7 +318,39 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
       bankQuestions,
       learningProfile,
       missedQuestionIds,
-      DAILY_PRACTICE_QUESTION_COUNT
+      sessionTargetCount
+    );
+    const recovery = buildRecoverySprintLesson(
+      bankQuestions,
+      dueNowQuestionIds,
+      openQueueQuestionIds,
+      fallback.questions,
+      sessionTargetCount
+    );
+
+    if (recovery.questions.length < sessionTargetCount) {
+      redirect(`/dashboard?error=practice_start_failed`);
+    }
+
+    selected = recovery.questions;
+    source = "daily_recovery";
+    plan = {
+      ...plan,
+      generator: "recovery_queue",
+      dueNowCount: dueNowQuestionIds.length,
+      openQueueCount: openQueueQuestionIds.length,
+      ...recovery.plan,
+    };
+  } else {
+    if (bankQuestions.length < sessionTargetCount) {
+      redirect(`/dashboard?error=practice_questions_unavailable`);
+    }
+
+    const fallback = buildAdaptiveDailyLesson(
+      bankQuestions,
+      learningProfile,
+      missedQuestionIds,
+      sessionTargetCount
     );
 
     if (mode === "bank_only") {
@@ -319,8 +364,8 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
         aiGeneratedCount: 0,
         fallbackCount: selected.length,
       };
-    } else if (aiSelected.length >= DAILY_PRACTICE_QUESTION_COUNT) {
-      selected = aiSelected.slice(0, DAILY_PRACTICE_QUESTION_COUNT);
+    } else if (aiSelected.length >= sessionTargetCount) {
+      selected = aiSelected.slice(0, sessionTargetCount);
       source = "daily_ai";
       plan = {
         ...plan,
@@ -331,7 +376,7 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
         fallbackCount: 0,
       };
     } else if (aiSelected.length > 0) {
-      const needed = DAILY_PRACTICE_QUESTION_COUNT - aiSelected.length;
+      const needed = sessionTargetCount - aiSelected.length;
       selected = [...aiSelected, ...fallback.questions.slice(0, needed)];
       source = "daily_ai_hybrid";
       plan = {
@@ -356,7 +401,7 @@ export async function startDailyPractice(formData: FormData): Promise<void> {
     }
   }
 
-  if (selected.length < DAILY_PRACTICE_QUESTION_COUNT) {
+  if (selected.length < sessionTargetCount) {
     redirect(`/dashboard?error=practice_start_failed`);
   }
 

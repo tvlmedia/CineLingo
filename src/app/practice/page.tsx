@@ -200,6 +200,8 @@ export default async function PracticePage({
                   ? "AI-generated"
                   : String(session.source || "") === "daily_ai_hybrid"
                     ? "AI + question bank"
+                    : String(session.source || "") === "daily_recovery"
+                      ? "Recovery sprint"
                     : "Question bank"}
               </p>
             </div>

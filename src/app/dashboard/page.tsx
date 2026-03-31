@@ -384,12 +384,22 @@ export default async function DashboardPage({
             </form>
             <form action={startDailyPractice} className="pointer-events-auto">
               <input type="hidden" name="forceNew" value="1" />
+              <input type="hidden" name="mode" value="recovery" />
+              <button
+                type="submit"
+                className="rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]"
+              >
+                {dueNowMistakes > 0 ? `Start recovery sprint (${dueNowMistakes})` : "Start recovery sprint"}
+              </button>
+            </form>
+            <form action={startDailyPractice} className="pointer-events-auto">
+              <input type="hidden" name="forceNew" value="1" />
               <input type="hidden" name="mode" value="bank_only" />
               <button
                 type="submit"
                 className="rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]"
               >
-                Start fast session
+                Start fresh session
               </button>
             </form>
             <Link

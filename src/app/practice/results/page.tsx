@@ -221,6 +221,8 @@ export default async function PracticeResultsPage({
                 ? "AI coach session"
                 : String(session.source || "") === "daily_ai_hybrid"
                   ? "AI + question bank session"
+                  : String(session.source || "") === "daily_recovery"
+                    ? "Recovery sprint session"
                   : "Adaptive bank session"}
             </p>
             {strongestToday ? (
@@ -245,6 +247,13 @@ export default async function PracticeResultsPage({
                 <input type="hidden" name="mode" value="adaptive" />
                 <button className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-[#13100a]">
                   Start adaptive session
+                </button>
+              </form>
+              <form action={startDailyPractice}>
+                <input type="hidden" name="forceNew" value="1" />
+                <input type="hidden" name="mode" value="recovery" />
+                <button className="rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]">
+                  Start recovery sprint
                 </button>
               </form>
               <form action={startDailyPractice}>
