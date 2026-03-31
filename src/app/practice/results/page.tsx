@@ -69,6 +69,27 @@ function strongestCategory(rows: Array<{ category: string; total: number; correc
   return sorted.length > 0 ? sorted[0].category : null;
 }
 
+function readLessonPlanMeta(value: unknown): {
+  dailyQuestTitle: string;
+  dailyQuestRewardGranted: boolean;
+  dailyQuestBonusXp: number;
+} {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {
+      dailyQuestTitle: "",
+      dailyQuestRewardGranted: false,
+      dailyQuestBonusXp: 0,
+    };
+  }
+
+  const row = value as Record<string, unknown>;
+  return {
+    dailyQuestTitle: typeof row.dailyQuestTitle === "string" ? row.dailyQuestTitle : "",
+    dailyQuestRewardGranted: Boolean(row.dailyQuestRewardGranted),
+    dailyQuestBonusXp: Number(row.dailyQuestBonusXp || 0),
+  };
+}
+
 export default async function PracticeResultsPage({
   searchParams,
 }: {
@@ -88,7 +109,7 @@ export default async function PracticeResultsPage({
   const { data: session } = await supabase
     .from("practice_sessions")
     .select(
-      "id, status, source, total_questions, correct_count, xp_earned, completed_at, coach_summary, coach_next_focus, strongest_discipline, weakest_discipline"
+      "id, status, source, total_questions, correct_count, xp_earned, completed_at, coach_summary, coach_next_focus, strongest_discipline, weakest_discipline, lesson_plan"
     )
     .eq("id", sessionId)
     .eq("user_id", user.id)
@@ -101,6 +122,8 @@ export default async function PracticeResultsPage({
   if (session.status !== "completed") {
     redirect(`/practice?session=${encodeURIComponent(sessionId)}&q=1`);
   }
+
+  const lessonMeta = readLessonPlanMeta(session.lesson_plan);
 
   const { data: answers } = await supabase
     .from("practice_answers")
@@ -225,6 +248,11 @@ export default async function PracticeResultsPage({
                     ? "Recovery sprint session"
                   : "Adaptive bank session"}
             </p>
+            {lessonMeta.dailyQuestRewardGranted ? (
+              <p className="mt-1 text-sm text-[#e4d2a4]">
+                Daily quest complete{lessonMeta.dailyQuestTitle ? `: ${lessonMeta.dailyQuestTitle}` : ""} · +{lessonMeta.dailyQuestBonusXp} XP bonus
+              </p>
+            ) : null}
             {strongestToday ? (
               <p className="mt-2 text-sm text-muted">Strongest area today: {strongestToday}</p>
             ) : null}

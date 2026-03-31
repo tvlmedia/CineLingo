@@ -6,6 +6,7 @@ import { startAssessment } from "@/app/onboarding/actions";
 import { startDailyPractice } from "@/app/practice/actions";
 import { ASSESSMENT_CATEGORIES, type AssessmentCategory } from "@/lib/assessment/types";
 import { dueInMs, isReviewDueNow } from "@/lib/practice/review-schedule";
+import { computeDailyQuestProgress, getDailyQuest } from "@/lib/practice/daily-quest";
 import { PracticePrewarm } from "./PracticePrewarm";
 
 function isoToday(): string {
@@ -40,7 +41,7 @@ export default async function DashboardPage({
   weekStart.setUTCDate(weekStart.getUTCDate() - 6);
   const weekStartIso = weekStart.toISOString().slice(0, 10);
 
-  const [{ data: profile }, { data: latestAssessment }, { data: inProgressSession }, { data: todayProgress }, { data: disciplineRows }, { data: lastPracticeSession }, { data: socialRows }, { data: weeklyRows }, { data: missedQueueRows }, { data: learningProfile }] =
+  const [{ data: profile }, { data: latestAssessment }, { data: inProgressSession }, { data: todayProgress }, { data: disciplineRows }, { data: lastPracticeSession }, { data: socialRows }, { data: weeklyRows }, { data: missedQueueRows }, { data: learningProfile }, { data: todayCompletedSessions }] =
     await Promise.all([
       supabase
         .from("profiles")
@@ -101,6 +102,12 @@ export default async function DashboardPage({
         .select("weak_subtopics, weakest_disciplines, strongest_disciplines")
         .eq("user_id", user.id)
         .maybeSingle(),
+      supabase
+        .from("practice_sessions")
+        .select("id, lesson_plan")
+        .eq("user_id", user.id)
+        .eq("status", "completed")
+        .eq("lesson_date", today),
     ]);
 
   const friendIds = Array.from(
@@ -200,6 +207,7 @@ export default async function DashboardPage({
   );
 
   const hasInProgress = Boolean(inProgressSession?.id);
+  const inProgressSessionId = typeof inProgressSession?.id === "string" ? inProgressSession.id : "";
   const canPrewarmAi = Boolean(process.env.OPENAI_API_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY);
   const friendsCount = socialRows?.length || 0;
   const weeklyXpByUser = new Map<string, number>();
@@ -282,6 +290,17 @@ export default async function DashboardPage({
   const missionDoneCount =
     (missionPracticeDone ? 1 : 0) + (missionReviewDone ? 1 : 0) + (missionGoalDone ? 1 : 0);
   const isAdmin = String(user.email || "").toLowerCase() === "info@tvlmedia.nl";
+  const todayQuest = getDailyQuest(new Date(`${today}T00:00:00.000Z`));
+  const todayQuestProgress = computeDailyQuestProgress(todayQuest, xpToday, sessionsToday);
+  const questRewardClaimed = ((todayCompletedSessions || []) as Array<{ lesson_plan?: unknown }>).some(
+    (row) =>
+      Boolean(
+        row.lesson_plan &&
+          typeof row.lesson_plan === "object" &&
+          !Array.isArray(row.lesson_plan) &&
+          (row.lesson_plan as Record<string, unknown>).dailyQuestRewardGranted
+      )
+  );
   const weakSubtopics = Array.isArray(learningProfile?.weak_subtopics)
     ? learningProfile.weak_subtopics.filter((entry): entry is string => typeof entry === "string").slice(0, 3)
     : [];
@@ -363,15 +382,24 @@ export default async function DashboardPage({
           </p>
 
           <div className="relative z-20 mt-6 flex flex-wrap gap-3 pointer-events-auto">
-            <form action={startDailyPractice} className="pointer-events-auto">
-              <input type="hidden" name="mode" value="adaptive" />
-              <button
-                type="submit"
+            {hasInProgress && inProgressSessionId ? (
+              <Link
+                href={`/practice?session=${encodeURIComponent(inProgressSessionId)}&q=1`}
                 className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-[#13100a]"
               >
-                {hasInProgress ? "Continue Daily Practice" : "Start Daily Practice"}
-              </button>
-            </form>
+                Continue Daily Practice
+              </Link>
+            ) : (
+              <form action={startDailyPractice} className="pointer-events-auto">
+                <input type="hidden" name="mode" value="adaptive" />
+                <button
+                  type="submit"
+                  className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-[#13100a]"
+                >
+                  Start Daily Practice
+                </button>
+              </form>
+            )}
             <form action={startDailyPractice} className="pointer-events-auto">
               <input type="hidden" name="forceNew" value="1" />
               <input type="hidden" name="mode" value="ai_only" />
@@ -466,6 +494,27 @@ export default async function DashboardPage({
             <div className="h-2 overflow-hidden rounded-full bg-white/10">
               <div className="h-full rounded-full bg-accent" style={{ width: `${dailyGoalPct}%` }} />
             </div>
+          </div>
+
+          <div className="mt-4 rounded-xl border border-border bg-[#1b1c20] px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs uppercase tracking-[0.16em] text-muted">Daily quest</p>
+              <span
+                className={`rounded-full border px-2.5 py-1 text-xs ${
+                  todayQuestProgress.completed
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                    : "border-border bg-[#202228] text-muted"
+                }`}
+              >
+                {todayQuestProgress.completed ? "Complete" : "In progress"}
+              </span>
+            </div>
+            <p className="mt-2 font-semibold">{todayQuest.title}</p>
+            <p className="mt-1 text-sm text-muted">{todayQuest.description}</p>
+            <p className="mt-2 text-xs text-muted">
+              Progress: {todayQuestProgress.value}/{todayQuestProgress.target}
+              {questRewardClaimed ? ` · reward claimed (+${todayQuest.bonusXp} XP)` : ` · reward ${todayQuest.bonusXp} XP`}
+            </p>
           </div>
         </section>
 

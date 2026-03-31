@@ -12,6 +12,7 @@ import { updateMissedQuestionProgress } from "@/lib/practice/missed";
 import { generateCoachSummaryWithOpenAI } from "@/lib/practice/coach";
 import { DAILY_GOAL_XP_DEFAULT } from "@/lib/practice/types";
 import { ASSESSMENT_CATEGORIES, type AssessmentCategory } from "@/lib/assessment/types";
+import { computeDailyQuestProgress, getDailyQuest } from "@/lib/practice/daily-quest";
 
 function isAssessmentCategory(value: string): value is AssessmentCategory {
   return (ASSESSMENT_CATEGORIES as readonly string[]).includes(value);
@@ -66,6 +67,19 @@ function normalizeJoinedQuestion(value: JoinedQuestionRaw): {
 
 async function finalizeSessionAndProgress(sessionId: string, userId: string) {
   const supabase = await createClient();
+  const today = todayIsoDate();
+  const dailyQuest = getDailyQuest(new Date(`${today}T00:00:00.000Z`));
+
+  const { data: sessionRow } = await supabase
+    .from("practice_sessions")
+    .select("source, lesson_plan")
+    .eq("id", sessionId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const existingLessonPlan =
+    sessionRow?.lesson_plan && typeof sessionRow.lesson_plan === "object" && !Array.isArray(sessionRow.lesson_plan)
+      ? (sessionRow.lesson_plan as Record<string, unknown>)
+      : {};
 
   const { data: allRows, error: allRowsError } = await supabase
     .from("practice_answers")
@@ -97,8 +111,6 @@ async function finalizeSessionAndProgress(sessionId: string, userId: string) {
     if (row.is_correct) current.correct += 1;
     sessionCategoryStats.set(categoryRaw, current);
   }
-
-  const today = todayIsoDate();
 
   const { data: streakRows } = await supabase
     .from("user_daily_progress")
@@ -148,25 +160,6 @@ async function finalizeSessionAndProgress(sessionId: string, userId: string) {
     roleFocus: String(profileRow?.role_focus || ""),
   });
 
-  const { error: sessionUpdateError } = await supabase
-    .from("practice_sessions")
-    .update({
-      status: "completed",
-      correct_count: correctCount,
-      xp_earned: xp.totalXp,
-      completed_at: new Date().toISOString(),
-      strongest_discipline: strongestDiscipline,
-      weakest_discipline: weakestDiscipline,
-      coach_summary: coach.summary,
-      coach_next_focus: coach.nextFocus,
-    })
-    .eq("id", sessionId)
-    .eq("user_id", userId);
-
-  if (sessionUpdateError) {
-    return { error: "result_save_failed" as const };
-  }
-
   const { data: existingDaily } = await supabase
     .from("user_daily_progress")
     .select("xp_earned, sessions_completed, goal_target_xp")
@@ -177,7 +170,56 @@ async function finalizeSessionAndProgress(sessionId: string, userId: string) {
   const existingXp = Number(existingDaily?.xp_earned || 0);
   const existingSessions = Number(existingDaily?.sessions_completed || 0);
   const goalTargetXp = Number(existingDaily?.goal_target_xp || DAILY_GOAL_XP_DEFAULT);
-  const updatedXp = existingXp + xp.totalXp;
+  const projectedXpWithoutQuest = existingXp + xp.totalXp;
+  const projectedSessions = existingSessions + 1;
+
+  const { data: priorQuestRewardedRow } = await supabase
+    .from("practice_sessions")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("status", "completed")
+    .eq("lesson_date", today)
+    .contains("lesson_plan", { dailyQuestRewardGranted: true })
+    .limit(1)
+    .maybeSingle();
+  const questAlreadyRewarded = Boolean(priorQuestRewardedRow?.id);
+  const questProgressAfterSession = computeDailyQuestProgress(
+    dailyQuest,
+    projectedXpWithoutQuest,
+    projectedSessions
+  );
+  const questBonusXp =
+    questProgressAfterSession.completed && !questAlreadyRewarded ? dailyQuest.bonusXp : 0;
+  const sessionXpEarned = xp.totalXp + questBonusXp;
+  const updatedXp = existingXp + sessionXpEarned;
+
+  const { error: sessionUpdateError } = await supabase
+    .from("practice_sessions")
+    .update({
+      status: "completed",
+      correct_count: correctCount,
+      xp_earned: sessionXpEarned,
+      completed_at: new Date().toISOString(),
+      strongest_discipline: strongestDiscipline,
+      weakest_discipline: weakestDiscipline,
+      coach_summary: coach.summary,
+      coach_next_focus: coach.nextFocus,
+      lesson_plan: {
+        ...existingLessonPlan,
+        dailyQuestId: dailyQuest.id,
+        dailyQuestTitle: dailyQuest.title,
+        dailyQuestMetric: dailyQuest.metric,
+        dailyQuestTarget: dailyQuest.targetValue,
+        dailyQuestBonusXp: questBonusXp,
+        dailyQuestRewardGranted: questBonusXp > 0,
+      },
+    })
+    .eq("id", sessionId)
+    .eq("user_id", userId);
+
+  if (sessionUpdateError) {
+    return { error: "result_save_failed" as const };
+  }
 
   await supabase.from("user_daily_progress").upsert(
     {
@@ -240,6 +282,11 @@ async function finalizeSessionAndProgress(sessionId: string, userId: string) {
 
   return {
     xp,
+    sessionXpEarned,
+    questBonusXp,
+    dailyQuest,
+    dailyQuestCompleted: questProgressAfterSession.completed,
+    dailyQuestAlreadyRewarded: questAlreadyRewarded,
     correctCount,
     totalQuestions,
     streak: nextStreak,
@@ -378,7 +425,14 @@ export async function POST(request: NextRequest) {
         explanation: question.explanation,
       },
       summary: {
-        xpEarned: final.xp.totalXp,
+        xpEarned: final.sessionXpEarned,
+        questBonusXp: final.questBonusXp,
+        dailyQuest: {
+          id: final.dailyQuest.id,
+          title: final.dailyQuest.title,
+          completed: final.dailyQuestCompleted,
+          alreadyRewarded: final.dailyQuestAlreadyRewarded,
+        },
         streak: final.streak,
         score: `${final.correctCount}/${final.totalQuestions}`,
         coachSummary: final.coachSummary,
