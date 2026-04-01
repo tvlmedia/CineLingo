@@ -397,6 +397,8 @@ export default async function SocialPage({
       roleFocus: receiver?.roleFocus || "Role not set",
     };
   });
+  const incomingCount = incomingCards.length;
+  const outgoingCount = outgoingCards.length;
 
   let profilePanel: ProfilePanelData | null = null;
 
@@ -460,7 +462,7 @@ export default async function SocialPage({
               <p className="text-xs uppercase tracking-[0.24em] text-muted">CineLingo Network</p>
               <h1 className="text-3xl font-semibold md:text-4xl">Filmmaker Social Layer</h1>
               <p className="mt-2 text-sm text-muted">
-                Connect with cinematographers by craft profile, strengths, and collaboration relevance.
+                Connect by craft profile, level signal, and real collaboration context.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -471,6 +473,17 @@ export default async function SocialPage({
                 Back to dashboard
               </Link>
             </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className="rounded-full border border-border bg-[#1f2126] px-3 py-1 text-xs text-muted">
+              Friends {friendSummaries.length}
+            </span>
+            <span className="rounded-full border border-border bg-[#1f2126] px-3 py-1 text-xs text-muted">
+              Incoming {incomingCount}
+            </span>
+            <span className="rounded-full border border-border bg-[#1f2126] px-3 py-1 text-xs text-muted">
+              Outgoing {outgoingCount}
+            </span>
           </div>
         </header>
 
@@ -486,7 +499,7 @@ export default async function SocialPage({
           </p>
         ) : null}
 
-        <section className="grid gap-6 xl:grid-cols-[380px_1fr_360px]">
+        <section className="grid gap-6 xl:grid-cols-[340px_1fr_340px]">
           <aside className="space-y-5">
             <section className="rounded-2xl border border-border bg-[#16171a] p-5">
               <h2 className="text-xl font-semibold">Add filmmaker</h2>
@@ -506,7 +519,68 @@ export default async function SocialPage({
             </section>
 
             <section className="rounded-2xl border border-border bg-[#16171a] p-5">
-              <h3 className="text-lg font-semibold">Incoming invites</h3>
+              <h3 className="text-lg font-semibold">Friends ({friendSummaries.length})</h3>
+              <div className="mt-3 space-y-3">
+                {friendSummaries.length === 0 ? (
+                  <p className="text-sm text-muted">No friends yet.</p>
+                ) : (
+                  friendSummaries.map((friend) => {
+                    const isActive = friend.id === activeFriendId;
+                    return (
+                      <Link
+                        key={friend.id}
+                        href={`/social?chat=${friend.id}`}
+                        className={`block rounded-2xl border p-3 transition ${
+                          isActive
+                            ? "border-accent bg-[#252831]"
+                            : "border-border bg-[#1b1c20] hover:border-[#3a3d45] hover:bg-[#202228]"
+                        }`}
+                      >
+                      <div className="flex items-center gap-3">
+                        {friend.avatarUrl ? (
+                          <img
+                            src={friend.avatarUrl}
+                            alt={friend.fullName}
+                            className="h-11 w-11 rounded-xl border border-border object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-[#202228] text-sm font-semibold">
+                            {friend.fullName.slice(0, 1).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="truncate font-semibold">{friend.fullName}</p>
+                            <span className="rounded-full border border-border bg-[#252831] px-2 py-0.5 text-[10px] font-semibold text-foreground">
+                              {friend.levelLabel}
+                            </span>
+                          </div>
+                          <p className="truncate text-xs text-muted">@{friend.username}</p>
+                          <p className="truncate text-xs text-muted">{friend.roleFocus}</p>
+                          {friend.strongest.length > 0 ? (
+                            <p className="mt-1 truncate text-[11px] text-accent">
+                              {friend.strongest.join(" · ")}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {friend.unreadCount > 0 ? (
+                        <p className="mt-2 text-xs font-semibold text-accent">
+                          {friend.unreadCount} unread
+                        </p>
+                      ) : null}
+                      </Link>
+                    );
+                  })
+                )}
+              </div>
+            </section>
+
+            <details className="rounded-2xl border border-border bg-[#16171a] p-5" open={incomingCount > 0}>
+              <summary className="cursor-pointer list-none">
+                <h3 className="text-lg font-semibold">Incoming invites ({incomingCount})</h3>
+              </summary>
               <div className="mt-3 space-y-3">
                 {incomingCards.length === 0 ? (
                   <p className="text-sm text-muted">No incoming invites.</p>
@@ -554,10 +628,12 @@ export default async function SocialPage({
                   ))
                 )}
               </div>
-            </section>
+            </details>
 
-            <section className="rounded-2xl border border-border bg-[#16171a] p-5">
-              <h3 className="text-lg font-semibold">Outgoing invites</h3>
+            <details className="rounded-2xl border border-border bg-[#16171a] p-5">
+              <summary className="cursor-pointer list-none">
+                <h3 className="text-lg font-semibold">Outgoing invites ({outgoingCount})</h3>
+              </summary>
               <div className="mt-3 space-y-3">
                 {outgoingCards.length === 0 ? (
                   <p className="text-sm text-muted">No outgoing invites.</p>
@@ -592,67 +668,7 @@ export default async function SocialPage({
                   ))
                 )}
               </div>
-            </section>
-
-            <section className="rounded-2xl border border-border bg-[#16171a] p-5">
-              <h3 className="text-lg font-semibold">Friends ({friendSummaries.length})</h3>
-              <div className="mt-3 space-y-3">
-                {friendSummaries.length === 0 ? (
-                  <p className="text-sm text-muted">No friends yet.</p>
-                ) : (
-                  friendSummaries.map((friend) => {
-                    const isActive = friend.id === activeFriendId;
-                    return (
-                      <Link
-                        key={friend.id}
-                        href={`/social?chat=${friend.id}`}
-                        className={`block rounded-2xl border p-3 transition ${
-                          isActive
-                            ? "border-accent bg-[#252831]"
-                            : "border-border bg-[#1b1c20] hover:border-[#3a3d45] hover:bg-[#202228]"
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          {friend.avatarUrl ? (
-                            <img
-                              src={friend.avatarUrl}
-                              alt={friend.fullName}
-                              className="h-12 w-12 rounded-xl border border-border object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-[#202228] text-sm font-semibold">
-                              {friend.fullName.slice(0, 1).toUpperCase()}
-                            </div>
-                          )}
-
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="truncate font-semibold">{friend.fullName}</p>
-                              <span className="rounded-full border border-border bg-[#252831] px-2 py-0.5 text-[10px] font-semibold text-foreground">
-                                {friend.levelLabel}
-                              </span>
-                            </div>
-                            <p className="truncate text-xs text-muted">@{friend.username}</p>
-                            <p className="truncate text-xs text-muted">{friend.roleFocus}</p>
-                            {friend.strongest.length > 0 ? (
-                              <p className="mt-1 truncate text-[11px] text-accent">
-                                Strongest: {friend.strongest.join(", ")}
-                              </p>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        {friend.unreadCount > 0 ? (
-                          <p className="mt-2 text-xs font-semibold text-accent">
-                            {friend.unreadCount} unread message{friend.unreadCount > 1 ? "s" : ""}
-                          </p>
-                        ) : null}
-                      </Link>
-                    );
-                  })
-                )}
-              </div>
-            </section>
+            </details>
           </aside>
 
           <SocialNetworkClient

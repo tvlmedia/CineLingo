@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type ChatMessageItem = {
   id: string;
@@ -40,6 +40,7 @@ export function SocialNetworkClient({
   const [pendingMessage, setPendingMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const endOfMessagesRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setChatMessages(initialMessages);
@@ -80,6 +81,11 @@ export function SocialNetworkClient({
       if (timer) clearInterval(timer);
     };
   }, [selectedChatId]);
+
+  useEffect(() => {
+    if (!selectedFriend) return;
+    endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [chatMessages, selectedFriend]);
 
   useEffect(() => {
     if (!selectedChatId) {
@@ -180,6 +186,13 @@ export function SocialNetworkClient({
     setIsSending(false);
   }
 
+  function onComposeKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void handleSend(event as unknown as FormEvent);
+    }
+  }
+
   const chatSubtitle = useMemo(() => {
     if (!selectedFriend) return "Selecteer een filmmaker om te chatten.";
     return `Chat met ${selectedFriend.fullName} (@${selectedFriend.username})`;
@@ -192,6 +205,9 @@ export function SocialNetworkClient({
           <p className="text-xs uppercase tracking-[0.22em] text-muted">Direct chat</p>
           <h2 className="mt-1 text-2xl font-semibold">Conversation</h2>
           <p className="mt-1 text-sm text-muted">{chatSubtitle}</p>
+          {selectedFriend ? (
+            <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-muted">Live updates every 1.3s</p>
+          ) : null}
         </div>
         {selectedFriend ? (
           <div className="rounded-xl border border-border bg-[#1b1c20] px-3 py-2 text-right">
@@ -202,12 +218,12 @@ export function SocialNetworkClient({
       </div>
 
       {!selectedFriend ? (
-        <div className="flex h-[560px] items-center justify-center rounded-2xl border border-border bg-[#1b1c20] px-6 text-center text-sm text-muted">
+        <div className="flex h-[520px] items-center justify-center rounded-2xl border border-border bg-[#1b1c20] px-6 text-center text-sm text-muted">
           Kies links een connectie om direct te starten.
         </div>
       ) : (
         <>
-          <div className="mb-4 h-[460px] space-y-2 overflow-y-auto rounded-2xl border border-border bg-[#1b1c20] p-3">
+          <div className="mb-4 h-[430px] space-y-2 overflow-y-auto rounded-2xl border border-border bg-[#1b1c20] p-3">
             {chatMessages.length === 0 ? (
               <p className="text-sm text-muted">Nog geen berichten in deze conversatie.</p>
             ) : (
@@ -236,6 +252,7 @@ export function SocialNetworkClient({
                 );
               })
             )}
+            <div ref={endOfMessagesRef} />
           </div>
 
           {chatError ? (
@@ -248,8 +265,9 @@ export function SocialNetworkClient({
             <textarea
               value={pendingMessage}
               onChange={(event) => setPendingMessage(event.target.value)}
+              onKeyDown={onComposeKeyDown}
               rows={3}
-              placeholder="Write a message..."
+              placeholder="Type a message... (Enter = send, Shift+Enter = new line)"
               required
             />
             <button
