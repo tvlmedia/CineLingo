@@ -324,29 +324,7 @@ export default async function PracticeResultsPage({
                 <input type="hidden" name="forceNew" value="1" />
                 <input type="hidden" name="mode" value="adaptive" />
                 <button className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-[#13100a]">
-                  Start adaptive session
-                </button>
-              </form>
-              <form action={startDailyPractice}>
-                <input type="hidden" name="forceNew" value="1" />
-                <input type="hidden" name="mode" value="recovery" />
-                <button className="rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]">
-                  Start recovery sprint
-                </button>
-              </form>
-              <form action={startDailyPractice}>
-                <input type="hidden" name="forceNew" value="1" />
-                <input type="hidden" name="mode" value="ai_only" />
-                <input type="hidden" name="strictAi" value="1" />
-                <button className="rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]">
-                  Start AI coach session
-                </button>
-              </form>
-              <form action={startDailyPractice}>
-                <input type="hidden" name="forceNew" value="1" />
-                <input type="hidden" name="mode" value="bank_only" />
-                <button className="rounded-xl border border-border bg-[#1a1b1f] px-5 py-2.5 text-sm font-semibold transition hover:bg-[#22252b]">
-                  Start fast session
+                  Start next daily session
                 </button>
               </form>
               <Link
@@ -362,6 +340,36 @@ export default async function PracticeResultsPage({
                 Back to dashboard
               </Link>
             </div>
+
+            <details className="mt-3 rounded-xl border border-border bg-[#1b1c20] px-4 py-3">
+              <summary className="cursor-pointer list-none text-xs uppercase tracking-[0.16em] text-muted">
+                More session types
+              </summary>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <form action={startDailyPractice}>
+                  <input type="hidden" name="forceNew" value="1" />
+                  <input type="hidden" name="mode" value="recovery" />
+                  <button className="rounded-lg border border-border bg-[#1a1b1f] px-3 py-2 text-sm font-semibold transition hover:bg-[#22252b]">
+                    Start recovery sprint
+                  </button>
+                </form>
+                <form action={startDailyPractice}>
+                  <input type="hidden" name="forceNew" value="1" />
+                  <input type="hidden" name="mode" value="ai_only" />
+                  <input type="hidden" name="strictAi" value="1" />
+                  <button className="rounded-lg border border-border bg-[#1a1b1f] px-3 py-2 text-sm font-semibold transition hover:bg-[#22252b]">
+                    Start AI coach session
+                  </button>
+                </form>
+                <form action={startDailyPractice}>
+                  <input type="hidden" name="forceNew" value="1" />
+                  <input type="hidden" name="mode" value="bank_only" />
+                  <button className="rounded-lg border border-border bg-[#1a1b1f] px-3 py-2 text-sm font-semibold transition hover:bg-[#22252b]">
+                    Start fast session
+                  </button>
+                </form>
+              </div>
+            </details>
           </section>
 
           <section className="rounded-2xl border border-border bg-[#16171a] p-6 md:p-7">
@@ -379,40 +387,48 @@ export default async function PracticeResultsPage({
             )}
           </section>
 
-          <section className="rounded-2xl border border-border bg-[#16171a] p-6 md:p-7">
+          <section id="missed-review" className="rounded-2xl border border-border bg-[#16171a] p-6 md:p-7">
             <h2 className="text-2xl font-semibold">Missed questions review</h2>
             {missed.length === 0 ? (
               <p className="mt-3 text-sm text-muted">Perfect session. No missed questions.</p>
             ) : (
               <div className="mt-4 space-y-4">
                 {missed.map((item) => (
-                  <div key={`${item.questionOrder}-${item.prompt}`} className="rounded-xl border border-border bg-[#1b1c20] p-4">
-                    <p className="mb-2 text-xs uppercase tracking-[0.16em] text-muted">{item.category}</p>
-                    <h3 className="text-lg font-semibold">{item.prompt}</h3>
-                    <p className="mt-2 text-sm text-[#e4e6eb]">
-                      Your answer: <span className="font-semibold">{item.selectedText}</span>
-                    </p>
-                    <p className="mt-1 text-sm text-[#f1debc]">
-                      Correct answer: <span className="font-semibold">{item.correctText}</span>
-                    </p>
-                    <p className="mt-2 text-sm text-muted">{item.explanation}</p>
-                    <form action={reportPracticeQuestion} className="mt-3">
-                      <input type="hidden" name="sessionId" value={sessionId} />
-                      <input type="hidden" name="questionId" value={item.questionId} />
-                      <input type="hidden" name="questionOrder" value={item.questionOrder} />
-                      <input
-                        type="hidden"
-                        name="details"
-                        value={`Prompt: ${item.prompt}\nYour answer: ${item.selectedText}\nMarked correct: ${item.correctText}`}
-                      />
-                      <button
-                        type="submit"
-                        className="rounded-lg border border-border bg-[#1a1b1f] px-3 py-1.5 text-xs font-semibold text-muted transition hover:bg-[#22252b]"
-                      >
-                        Mark as ambiguous
-                      </button>
-                    </form>
-                  </div>
+                  <details
+                    key={`${item.questionOrder}-${item.prompt}`}
+                    className="rounded-xl border border-border bg-[#1b1c20] p-4"
+                    open={item.questionOrder === missed[0]?.questionOrder}
+                  >
+                    <summary className="cursor-pointer list-none">
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted">{item.category}</p>
+                      <h3 className="mt-1 text-base font-semibold md:text-lg">{item.prompt}</h3>
+                      <p className="mt-2 text-sm text-[#e4e6eb]">
+                        Your answer: <span className="font-semibold">{item.selectedText}</span>
+                      </p>
+                    </summary>
+                    <div className="mt-3">
+                      <p className="text-sm text-[#f1debc]">
+                        Correct answer: <span className="font-semibold">{item.correctText}</span>
+                      </p>
+                      <p className="mt-2 text-sm text-muted">{item.explanation}</p>
+                      <form action={reportPracticeQuestion} className="mt-3">
+                        <input type="hidden" name="sessionId" value={sessionId} />
+                        <input type="hidden" name="questionId" value={item.questionId} />
+                        <input type="hidden" name="questionOrder" value={item.questionOrder} />
+                        <input
+                          type="hidden"
+                          name="details"
+                          value={`Prompt: ${item.prompt}\nYour answer: ${item.selectedText}\nMarked correct: ${item.correctText}`}
+                        />
+                        <button
+                          type="submit"
+                          className="rounded-lg border border-border bg-[#1a1b1f] px-3 py-1.5 text-xs font-semibold text-muted transition hover:bg-[#22252b]"
+                        >
+                          Mark as ambiguous
+                        </button>
+                      </form>
+                    </div>
+                  </details>
                 ))}
               </div>
             )}

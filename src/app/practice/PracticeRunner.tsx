@@ -90,6 +90,15 @@ export function PracticeRunner({
     }
     return combo;
   }, [localQuestions]);
+  const answeredOrders = useMemo(
+    () =>
+      new Set(
+        localQuestions
+          .filter((question) => Boolean(question.selectedOptionId))
+          .map((question) => question.questionOrder)
+      ),
+    [localQuestions]
+  );
 
   const currentFeedback = current ? feedbackByOrder[current.questionOrder] || null : null;
   const currentReportStatus = current
@@ -327,21 +336,42 @@ export function PracticeRunner({
         <div className="h-2 overflow-hidden rounded-full bg-white/10">
           <div className="h-full rounded-full bg-accent" style={{ width: `${progressPercent}%` }} />
         </div>
-        <div className="mt-3 grid gap-2 sm:grid-cols-3">
-          <div className="rounded-lg border border-border bg-[#1b1c20] px-3 py-2">
-            <p className="text-[11px] uppercase tracking-[0.14em] text-muted">Answered</p>
-            <p className="mt-1 text-sm font-semibold">
-              {answeredCount}/{localQuestions.length}
-            </p>
-          </div>
-          <div className="rounded-lg border border-border bg-[#1b1c20] px-3 py-2">
-            <p className="text-[11px] uppercase tracking-[0.14em] text-muted">Correct</p>
-            <p className="mt-1 text-sm font-semibold">{correctCount}</p>
-          </div>
-          <div className="rounded-lg border border-border bg-[#1b1c20] px-3 py-2">
-            <p className="text-[11px] uppercase tracking-[0.14em] text-muted">Current combo</p>
-            <p className="mt-1 text-sm font-semibold">x{sessionCombo}</p>
-          </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <span className="rounded-full border border-border bg-[#1b1c20] px-3 py-1 text-xs text-muted">
+            Answered {answeredCount}/{localQuestions.length}
+          </span>
+          <span className="rounded-full border border-border bg-[#1b1c20] px-3 py-1 text-xs text-muted">
+            Correct {correctCount}
+          </span>
+          <span className="rounded-full border border-border bg-[#1b1c20] px-3 py-1 text-xs text-muted">
+            Combo x{sessionCombo}
+          </span>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {localQuestions.map((question, index) => {
+            const isActive = index === currentIndex;
+            const isAnswered = answeredOrders.has(question.questionOrder);
+            const isCorrect = question.isCorrect === true;
+            const isWrong = question.isCorrect === false;
+
+            return (
+              <span
+                key={question.answerId}
+                className={`h-2.5 w-2.5 rounded-full border ${
+                  isActive
+                    ? "border-accent bg-accent"
+                    : isCorrect
+                      ? "border-emerald-400/60 bg-emerald-400/50"
+                      : isWrong
+                        ? "border-amber-400/60 bg-amber-400/45"
+                        : isAnswered
+                          ? "border-white/40 bg-white/20"
+                          : "border-white/20 bg-transparent"
+                }`}
+                title={`Q${question.questionOrder}${isCorrect ? " · correct" : isWrong ? " · incorrect" : isAnswered ? " · answered" : ""}`}
+              />
+            );
+          })}
         </div>
       </div>
 
@@ -425,7 +455,7 @@ export function PracticeRunner({
 
       <div className="mt-5 flex items-center justify-between gap-3">
         <p className="text-xs text-muted">
-          Short daily session. Immediate craft feedback. Tip: use keys 1-4 + Enter.
+          Focus mode: choose answer, check feedback, continue. Tip: keys 1-4 + Enter.
         </p>
         <button
           onClick={submitCurrentAnswer}
